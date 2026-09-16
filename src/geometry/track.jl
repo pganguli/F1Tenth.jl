@@ -26,9 +26,14 @@ function build_track(centerline::Vector{SVector{2,Float64}},
         next = centerline[mod1(i + 1, n)]
         tangent = next - prev
         tangent = tangent / norm(tangent)
-        normal_left = SVector(tangent[2], -tangent[1])
-        outer[i] = centerline[i] + normal_left * w_left[i]
-        inner[i] = centerline[i] - normal_left * w_right[i]
+        # This assumes the centerline is wound counter-clockwise (CCW): for a
+        # CCW-wound loop, rotating the tangent by -90 degrees points outward,
+        # so `outer`/`w_left` correctly land on the geometrically-outward
+        # boundary and `inner`/`w_right` on the inward one. For a
+        # clockwise-wound centerline, inner and outer swap.
+        normal_outward = SVector(tangent[2], -tangent[1])
+        outer[i] = centerline[i] + normal_outward * w_left[i]
+        inner[i] = centerline[i] - normal_outward * w_right[i]
     end
     segments = Segment[]
     for i in 1:n

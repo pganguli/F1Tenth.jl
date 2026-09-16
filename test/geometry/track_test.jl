@@ -56,3 +56,20 @@ end
         @test length(track.segments) == 8
     end
 end
+
+@testset "load_track: reads CSV without header row" begin
+    mktempdir() do dir
+        path = joinpath(dir, "track_noheader.csv")
+        open(path, "w") do io
+            println(io, "0.0,0.0,1.0,1.0")
+            println(io, "1.0,0.0,1.0,1.0")
+            println(io, "1.0,1.0,1.0,1.0")
+            println(io, "0.0,1.0,1.0,1.0")
+        end
+        track = F1Tenth.load_track(path)
+        @test length(track.centerline) == 4
+        @test track.centerline[1] == SVector(0.0, 0.0)
+        @test track.centerline[3] == SVector(1.0, 1.0)
+        @test length(track.segments) == 8
+    end
+end
