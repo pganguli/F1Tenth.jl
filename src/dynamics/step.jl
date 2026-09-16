@@ -7,7 +7,7 @@ const Action = SVector{2,Float64}
     x, y, δ, v, ψ, ψ̇, β = state
     sv = steering_constraint(δ, action[1], params)
     accl = accl_constraints(v, action[2], params)
-    p = (params.μ, params.C_Sf, params.C_Sr, params.lᶠ, params.lʳ,
+    p = (params.μ, params.Cᵦᶠ, params.Cᵦʳ, params.lᶠ, params.lʳ,
          params.h, params.m, params.Iᶻ, sv, accl)
     if abs(v) < 0.5
         # Python's vehicle_dynamics_st, when it internally switches to the

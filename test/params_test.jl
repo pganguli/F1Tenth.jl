@@ -4,8 +4,8 @@ using Test
 @testset "VehicleParams" begin
     p = F1Tenth.VehicleParams()
     @test p.μ == 1.0489
-    @test p.C_Sf == 4.718
-    @test p.C_Sr == 5.4562
+    @test p.Cᵦᶠ == 4.718
+    @test p.Cᵦʳ == 5.4562
     @test p.lᶠ == 0.15875
     @test p.lʳ == 0.17145
     @test p.h == 0.074
@@ -15,7 +15,7 @@ using Test
     @test p.δ⁺ == 0.4189
     @test p.δ̇⁻ == -3.2
     @test p.δ̇⁺ == 3.2
-    @test p.v_switch == 7.319
+    @test p.vₛ == 7.319
     @test p.a⁺ == 9.51
     @test p.v⁻ == -5.0
     @test p.v⁺ == 20.0
@@ -37,7 +37,7 @@ end
 
 @testset "accl_constraints" begin
     p = F1Tenth.VehicleParams()
-    # within bounds, below v_switch: passes through unchanged
+    # within bounds, below vₛ: passes through unchanged
     @test F1Tenth.accl_constraints(1.0, 2.0, p) == 2.0
     # at v⁺, positive accel requested -> zeroed
     @test F1Tenth.accl_constraints(p.v⁺, 1.0, p) == 0.0
@@ -45,8 +45,8 @@ end
     @test F1Tenth.accl_constraints(p.v⁻, -1.0, p) == 0.0
     # requested accel below -a⁺ -> clamped
     @test F1Tenth.accl_constraints(1.0, -100.0, p) == -p.a⁺
-    # above v_switch, positive-limit scales down: pos_limit = a⁺*v_switch/vel
-    vel = p.v_switch * 2
-    pos_limit = p.a⁺ * p.v_switch / vel
+    # above vₛ, positive-limit scales down: pos_limit = a⁺*vₛ/vel
+    vel = p.vₛ * 2
+    pos_limit = p.a⁺ * p.vₛ / vel
     @test F1Tenth.accl_constraints(vel, 100.0, p) == pos_limit
 end

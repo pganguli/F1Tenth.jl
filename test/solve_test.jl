@@ -4,8 +4,8 @@ using Test
 @testset "simulate matches ground truth on a mild scenario" begin
     p = F1Tenth.VehicleParams(;
         μ=1.0489,
-        C_Sf=21.92 / 1.0489,
-        C_Sr=21.92 / 1.0489,
+        Cᵦᶠ=21.92 / 1.0489,
+        Cᵦʳ=21.92 / 1.0489,
         lᶠ=0.3048 * 3.793293,
         lʳ=0.3048 * 4.667707,
         h=0.3048 * 2.01355,
@@ -17,7 +17,7 @@ using Test
         δ̇⁺=0.4,
         v⁻=-13.6,
         v⁺=50.8,
-        v_switch=7.319,
+        vₛ=7.319,
         a⁺=11.5,
     )
     u = F1Tenth.Action(0.15, 0.63 * 9.81)
