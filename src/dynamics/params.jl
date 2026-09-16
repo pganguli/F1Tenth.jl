@@ -1,16 +1,16 @@
 struct VehicleParams
-    mu::Float64
+    μ::Float64
     C_Sf::Float64
     C_Sr::Float64
-    lf::Float64
-    lr::Float64
+    l_f::Float64
+    l_r::Float64
     h::Float64
     m::Float64
-    I::Float64
-    s_min::Float64
-    s_max::Float64
-    sv_min::Float64
-    sv_max::Float64
+    I_z::Float64
+    δ_min::Float64
+    δ_max::Float64
+    δ̇_min::Float64
+    δ̇_max::Float64
     v_switch::Float64
     a_max::Float64
     v_min::Float64
@@ -18,36 +18,36 @@ struct VehicleParams
 end
 
 function VehicleParams(;
-    mu::Float64=1.0489,
+    μ::Float64=1.0489,
     C_Sf::Float64=4.718,
     C_Sr::Float64=5.4562,
-    lf::Float64=0.15875,
-    lr::Float64=0.17145,
+    l_f::Float64=0.15875,
+    l_r::Float64=0.17145,
     h::Float64=0.074,
     m::Float64=3.74,
-    I::Float64=0.04712,
-    s_min::Float64=-0.4189,
-    s_max::Float64=0.4189,
-    sv_min::Float64=-3.2,
-    sv_max::Float64=3.2,
+    I_z::Float64=0.04712,
+    δ_min::Float64=-0.4189,
+    δ_max::Float64=0.4189,
+    δ̇_min::Float64=-3.2,
+    δ̇_max::Float64=3.2,
     v_switch::Float64=7.319,
     a_max::Float64=9.51,
     v_min::Float64=-5.0,
     v_max::Float64=20.0,
 )
-    return VehicleParams(mu, C_Sf, C_Sr, lf, lr, h, m, I, s_min, s_max,
-                          sv_min, sv_max, v_switch, a_max, v_min, v_max)
+    return VehicleParams(μ, C_Sf, C_Sr, l_f, l_r, h, m, I_z, δ_min, δ_max,
+                          δ̇_min, δ̇_max, v_switch, a_max, v_min, v_max)
 end
 
 function steering_constraint(steering_angle::Float64, steering_velocity::Float64,
                               params::VehicleParams)
-    if (steering_angle <= params.s_min && steering_velocity <= 0) ||
-       (steering_angle >= params.s_max && steering_velocity >= 0)
+    if (steering_angle <= params.δ_min && steering_velocity <= 0) ||
+       (steering_angle >= params.δ_max && steering_velocity >= 0)
         return 0.0
-    elseif steering_velocity <= params.sv_min
-        return params.sv_min
-    elseif steering_velocity >= params.sv_max
-        return params.sv_max
+    elseif steering_velocity <= params.δ̇_min
+        return params.δ̇_min
+    elseif steering_velocity >= params.δ̇_max
+        return params.δ̇_max
     else
         return steering_velocity
     end

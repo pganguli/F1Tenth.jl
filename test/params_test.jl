@@ -3,18 +3,18 @@ using Test
 
 @testset "VehicleParams" begin
     p = F1Tenth.VehicleParams()
-    @test p.mu == 1.0489
+    @test p.μ == 1.0489
     @test p.C_Sf == 4.718
     @test p.C_Sr == 5.4562
-    @test p.lf == 0.15875
-    @test p.lr == 0.17145
+    @test p.l_f == 0.15875
+    @test p.l_r == 0.17145
     @test p.h == 0.074
     @test p.m == 3.74
-    @test p.I == 0.04712
-    @test p.s_min == -0.4189
-    @test p.s_max == 0.4189
-    @test p.sv_min == -3.2
-    @test p.sv_max == 3.2
+    @test p.I_z == 0.04712
+    @test p.δ_min == -0.4189
+    @test p.δ_max == 0.4189
+    @test p.δ̇_min == -3.2
+    @test p.δ̇_max == 3.2
     @test p.v_switch == 7.319
     @test p.a_max == 9.51
     @test p.v_min == -5.0
@@ -26,13 +26,13 @@ end
     # within bounds: passes through unchanged
     @test F1Tenth.steering_constraint(0.0, 1.0, p) == 1.0
     # at upper angle limit, positive velocity requested -> zeroed
-    @test F1Tenth.steering_constraint(p.s_max, 1.0, p) == 0.0
+    @test F1Tenth.steering_constraint(p.δ_max, 1.0, p) == 0.0
     # at lower angle limit, negative velocity requested -> zeroed
-    @test F1Tenth.steering_constraint(p.s_min, -1.0, p) == 0.0
-    # requested velocity below sv_min -> clamped
-    @test F1Tenth.steering_constraint(0.0, -10.0, p) == p.sv_min
-    # requested velocity above sv_max -> clamped
-    @test F1Tenth.steering_constraint(0.0, 10.0, p) == p.sv_max
+    @test F1Tenth.steering_constraint(p.δ_min, -1.0, p) == 0.0
+    # requested velocity below δ̇_min -> clamped
+    @test F1Tenth.steering_constraint(0.0, -10.0, p) == p.δ̇_min
+    # requested velocity above δ̇_max -> clamped
+    @test F1Tenth.steering_constraint(0.0, 10.0, p) == p.δ̇_max
 end
 
 @testset "accl_constraints" begin
