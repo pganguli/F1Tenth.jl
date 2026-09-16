@@ -8,7 +8,7 @@ const Action = SVector{2,Float64}
     sv = steering_constraint(δ, action[1], params)
     accl = accl_constraint(v, action[2], params)
     p = (params.μ, params.Cᵦᶠ, params.Cᵦʳ, params.lᶠ, params.lʳ,
-         params.h, params.m, params.Iᶻ, sv, accl)
+        params.h, params.m, params.Iᶻ, sv, accl)
     if abs(v) < 0.5
         # Python's vehicle_dynamics_st, when it internally switches to the
         # kinematic model for |v| < 0.5, does *not* zero ψ̈ (yaw angular
@@ -35,9 +35,8 @@ function step_dynamics(𝐱::State, action::Action, params::VehicleParams, dt::F
     k₂ = dynamics_rhs(𝐱 + dt * (k₁ / 2), action, params)
     k₃ = dynamics_rhs(𝐱 + dt * (k₂ / 2), action, params)
     k₄ = dynamics_rhs(𝐱 + dt * k₃, action, params)
-    new_state = 𝐱 + dt * (1 / 6) * (k₁ + 2 * k₂ + 2 * k₃ + k₄)
 
-    x, y, δ, v, ψ, ψ̇, β = new_state
+    x, y, δ, v, ψ, ψ̇, β = 𝐱 + dt * (1 / 6) * (k₁ + 2 * k₂ + 2 * k₃ + k₄)
     ψ = mod(ψ, 2 * pi)
 
     return State(x, y, δ, v, ψ, ψ̇, β)
