@@ -6,4 +6,11 @@ using Test
     include("mtk_models_test.jl")
     include("step_test.jl")
     include("solve_test.jl")
+    include("geometry/track_test.jl")
+    include("geometry/bvh_test.jl")
+    include("geometry/raycast_test.jl")
+    include("geometry/collision_test.jl")
+    include("geometry/step2_test.jl")
+    include("geometry/lazysets_export_test.jl")
+    include("exports_test.jl")
 end
