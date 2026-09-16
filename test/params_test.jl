@@ -35,18 +35,18 @@ end
     @test F1Tenth.steering_constraint(0.0, 10.0, p) == p.δ̇⁺
 end
 
-@testset "accl_constraints" begin
+@testset "accl_constraint" begin
     p = F1Tenth.VehicleParams()
     # within bounds, below vₛ: passes through unchanged
-    @test F1Tenth.accl_constraints(1.0, 2.0, p) == 2.0
+    @test F1Tenth.accl_constraint(1.0, 2.0, p) == 2.0
     # at v⁺, positive accel requested -> zeroed
-    @test F1Tenth.accl_constraints(p.v⁺, 1.0, p) == 0.0
+    @test F1Tenth.accl_constraint(p.v⁺, 1.0, p) == 0.0
     # at v⁻, negative accel requested -> zeroed
-    @test F1Tenth.accl_constraints(p.v⁻, -1.0, p) == 0.0
+    @test F1Tenth.accl_constraint(p.v⁻, -1.0, p) == 0.0
     # requested accel below -a⁺ -> clamped
-    @test F1Tenth.accl_constraints(1.0, -100.0, p) == -p.a⁺
-    # above vₛ, positive-limit scales down: pos_limit = a⁺*vₛ/vel
-    vel = p.vₛ * 2
-    pos_limit = p.a⁺ * p.vₛ / vel
-    @test F1Tenth.accl_constraints(vel, 100.0, p) == pos_limit
+    @test F1Tenth.accl_constraint(1.0, -100.0, p) == -p.a⁺
+    # above vₛ, positive-limit scales down: pos_limit = a⁺*vₛ/v
+    v = p.vₛ * 2
+    pos_limit = p.a⁺ * p.vₛ / v
+    @test F1Tenth.accl_constraint(v, 100.0, p) == pos_limit
 end

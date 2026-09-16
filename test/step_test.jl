@@ -25,21 +25,21 @@ end
 
 # Loops the KS RHS only, bypassing the |v|<0.5 mode switch, matching
 # Python's separate func_KS-only rollout used for the *_ks_gt literals.
-function _rollout_ks_only(state0::F1Tenth.State, action::F1Tenth.Action,
+function _rollout_ks_only(𝐱₀::F1Tenth.State, action::F1Tenth.Action,
                            params::F1Tenth.VehicleParams, dt::Float64, steps::Int)
-    state = state0
+    𝐱 = 𝐱₀
     for _ in 1:steps
-        sv = F1Tenth.steering_constraint(state[3], action[1], params)
-        accl = F1Tenth.accl_constraints(state[4], action[2], params)
+        sv = F1Tenth.steering_constraint(𝐱[3], action[1], params)
+        accl = F1Tenth.accl_constraint(𝐱[4], action[2], params)
         p = (params.μ, params.Cᵦᶠ, params.Cᵦʳ, params.lᶠ, params.lʳ,
              params.h, params.m, params.Iᶻ, sv, accl)
-        k₁ = F1Tenth.KS_RHS(state, p)
-        k₂ = F1Tenth.KS_RHS(state + dt * (k₁ / 2), p)
-        k₃ = F1Tenth.KS_RHS(state + dt * (k₂ / 2), p)
-        k₄ = F1Tenth.KS_RHS(state + dt * k₃, p)
-        state = state + dt * (1 / 6) * (k₁ + 2 * k₂ + 2 * k₃ + k₄)
+        k₁ = F1Tenth.KS_RHS(𝐱, p)
+        k₂ = F1Tenth.KS_RHS(𝐱 + dt * (k₁ / 2), p)
+        k₃ = F1Tenth.KS_RHS(𝐱 + dt * (k₂ / 2), p)
+        k₄ = F1Tenth.KS_RHS(𝐱 + dt * k₃, p)
+        𝐱 = 𝐱 + dt * (1 / 6) * (k₁ + 2 * k₂ + 2 * k₃ + k₄)
     end
-    return state
+    return 𝐱
 end
 
 const G = 9.81
@@ -113,7 +113,7 @@ end
     p = F1Tenth.VehicleParams()
     u = F1Tenth.Action(0.1, 2.0)
     dt = 0.01
-    state = ZERO7
+    𝐱 = ZERO7
     checkpoints = Dict(
         100 => F1Tenth.State(0.9930439005626006, 0.09991503614876832,
                               0.10000000000000006, 2.0000000000000013,
@@ -129,9 +129,9 @@ end
                                -0.9299998114470461),
     )
     for i in 1:1000
-        state = F1Tenth.step_dynamics(state, u, p, dt)
+        𝐱 = F1Tenth.step_dynamics(𝐱, u, p, dt)
         if haskey(checkpoints, i)
-            @test isapprox(state, checkpoints[i]; atol=1e-5)
+            @test isapprox(𝐱, checkpoints[i]; atol=1e-5)
         end
     end
 end
@@ -139,7 +139,7 @@ end
 @testset "step_dynamics is allocation-free" begin
     p = F1Tenth.VehicleParams()
     u = F1Tenth.Action(0.1, 1.0)
-    state = F1Tenth.State(0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0)
-    F1Tenth.step_dynamics(state, u, p, 0.01) # warmup
-    @test (@allocated F1Tenth.step_dynamics(state, u, p, 0.01)) == 0
+    𝐱 = F1Tenth.State(0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0)
+    F1Tenth.step_dynamics(𝐱, u, p, 0.01) # warmup
+    @test (@allocated F1Tenth.step_dynamics(𝐱, u, p, 0.01)) == 0
 end

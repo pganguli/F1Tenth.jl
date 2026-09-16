@@ -3,10 +3,10 @@ using StaticArrays
 const State = SVector{7,Float64}
 const Action = SVector{2,Float64}
 
-@inline function dynamics_rhs(state::State, action::Action, params::VehicleParams)
-    x, y, δ, v, ψ, ψ̇, β = state
+@inline function dynamics_rhs(𝐱::State, action::Action, params::VehicleParams)
+    x, y, δ, v, ψ, ψ̇, β = 𝐱
     sv = steering_constraint(δ, action[1], params)
-    accl = accl_constraints(v, action[2], params)
+    accl = accl_constraint(v, action[2], params)
     p = (params.μ, params.Cᵦᶠ, params.Cᵦʳ, params.lᶠ, params.lʳ,
          params.h, params.m, params.Iᶻ, sv, accl)
     if abs(v) < 0.5
@@ -19,23 +19,23 @@ const Action = SVector{2,Float64}
         # cleaner standalone HybridSystem-mode equation set, so that
         # simplification is corrected here, at the single per-stage
         # evaluation point, rather than in KS_RHS itself.
-        ks = KS_RHS(state, p)
-        lwb = params.lᶠ + params.lʳ
-        ψ̈ = accl / lwb * tan(δ) + v / (lwb * cos(δ)^2) * sv
+        ks = KS_RHS(𝐱, p)
+        lʷᵇ = params.lᶠ + params.lʳ
+        ψ̈ = accl / lʷᵇ * tan(δ) + v / (lʷᵇ * cos(δ)^2) * sv
         return State(ks[1], ks[2], ks[3], ks[4], ks[5], ψ̈, 0.0)
     else
-        return ST_RHS(state, p)
+        return ST_RHS(𝐱, p)
     end
 end
 
 # k₁..k₄: classical RK4 stage derivatives (dynamics_rhs evaluated at the
 # start, two midpoint estimates, and the endpoint of the step).
-function step_dynamics(state::State, action::Action, params::VehicleParams, dt::Float64)
-    k₁ = dynamics_rhs(state, action, params)
-    k₂ = dynamics_rhs(state + dt * (k₁ / 2), action, params)
-    k₃ = dynamics_rhs(state + dt * (k₂ / 2), action, params)
-    k₄ = dynamics_rhs(state + dt * k₃, action, params)
-    new_state = state + dt * (1 / 6) * (k₁ + 2 * k₂ + 2 * k₃ + k₄)
+function step_dynamics(𝐱::State, action::Action, params::VehicleParams, dt::Float64)
+    k₁ = dynamics_rhs(𝐱, action, params)
+    k₂ = dynamics_rhs(𝐱 + dt * (k₁ / 2), action, params)
+    k₃ = dynamics_rhs(𝐱 + dt * (k₂ / 2), action, params)
+    k₄ = dynamics_rhs(𝐱 + dt * k₃, action, params)
+    new_state = 𝐱 + dt * (1 / 6) * (k₁ + 2 * k₂ + 2 * k₃ + k₄)
 
     x, y, δ, v, ψ, ψ̇, β = new_state
     ψ = mod(ψ, 2 * pi)
