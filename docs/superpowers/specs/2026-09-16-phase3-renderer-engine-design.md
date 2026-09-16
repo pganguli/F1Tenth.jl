@@ -90,34 +90,48 @@ costs nothing, and `NullRenderer`'s methods are simple enough that
 Julia's compiler can inline them away entirely. Lives in the main
 module, no extra dependency.
 
-### 3. `GLMakieRenderer` / `CairoMakieRenderer`: package extensions, not core deps
+### 3. `GLMakieRenderer` / `CairoMakieRenderer`: regular `[deps]`, not package extensions
 
-`GLMakie` and `CairoMakie` are both heavy dependencies. Phase 2 flagged
-exactly this tradeoff for `LazySets.jl` (`lazysets_export.jl`'s
-deferred-minor about a weakdep) and deferred it; Phase 3 does not
-defer it, because unlike `LazySets` (an ~8-line file), rendering is
-this phase's entire deliverable and a `NullRenderer`/headless/training
-user must not be forced to install or precompile either Makie backend.
+**Amended during Task 2 of implementation** (see addendum at the end of
+this section for why). Originally this decision chose Julia package
+extensions (weakdeps) specifically so a `NullRenderer`/headless/training
+user wouldn't pay GLMakie/CairoMakie's install/precompile cost. That
+goal is unchanged, but the mechanism isn't viable in this codebase: Phase
+1's `mtk_models.jl` `__init__()` (`src/dynamics/mtk_models.jl:116-121`)
+`@eval`s new `const` bindings (`KS_RHS`/`ST_RHS`) directly into the
+`F1Tenth` module on every load — a deliberate, measured choice over a
+`Ref{Function}` indirection to keep `step_dynamics` zero-allocation (see
+the comment at `mtk_models.jl:106-115`). Julia disallows exactly this
+kind of `@eval`-into-an-already-loaded-module while precompiling *any*
+other package that depends on it — which is what a package extension
+(or in fact any downstream Julia package) of `F1Tenth` is. This isn't
+fixable from Phase 3's side without reopening Phase 1's already-merged,
+performance-tuned `__init__` pattern, which is out of scope here.
 
-Mechanism: the main module declares abstract types and empty
-constructor stubs only —
+Mechanism, revised: `GLMakie` and `CairoMakie` are regular `[deps]` of
+`F1Tenth`, like every other dependency (`ModelingToolkit`,
+`NearestNeighbors`, etc.). The main module still declares
+`AbstractRenderer` and empty constructor stubs —
 
 ```julia
 function GLMakieRenderer end
 function CairoMakieRenderer end
 ```
 
-— plus the four interface generics from Decision 1. Two new Julia
-package extensions, `ext/F1TenthGLMakieExt.jl` and
-`ext/F1TenthCairoMakieExt.jl`, each add a method to their stub
-constructor and define a private concrete struct (`<: AbstractRenderer`,
-not exported — accessed only through the exported stub function name)
-plus methods for `init!`/`render!`/`close!`/`reset!` dispatched on
-that struct. `GLMakie`/`CairoMakie` become `[weakdeps]` +
-`[extensions]` entries in `Project.toml`; they are only loaded,
-compiled, and their code paths only reachable, when the *caller's*
-environment also has that package loaded (`using GLMakie` or `using
-CairoMakie` alongside `using F1Tenth`).
+— plus the four interface generics from Decision 1, unchanged from the
+original design (Task 1's work is unaffected by this amendment). But
+`GLMakieRenderer`/`CairoMakieRenderer`'s actual methods, and their
+private concrete `<: AbstractRenderer` structs, now live in ordinary
+`src/render/glmakie.jl` / `src/render/cairomakie.jl` files, `include`d
+directly into the `F1Tenth` module from `src/F1Tenth.jl` — exactly like
+every Phase 1/2 file — rather than in `ext/` package-extension files.
+This means every `F1Tenth` user now installs and precompiles both Makie
+backends unconditionally, including headless/training users who only
+want `NullRenderer` — the cost the original mechanism was chosen to
+avoid. Accepted as the pragmatic tradeoff given the `__init__`
+constraint; revisiting Phase 1's `__init__` pattern to make extensions
+viable is explicitly out of scope for Phase 3 and noted as a future
+option in this doc's Open Questions section.
 
 A `CarFootprint` is supplied once at each renderer's construction
 (`GLMakieRenderer(track; car=CarFootprint())`,
@@ -251,13 +265,15 @@ a distinct operation from `init!`/`close!` (Decision 1).
 
 ## File layout
 
+**Amended along with Decision 3** — no `ext/` directory; `glmakie.jl`/
+`cairomakie.jl` are ordinary `include`d files like every Phase 1/2 file.
+
 ```
 src/render/
   interface.jl      # AbstractRenderer, init!/render!/close!/reset! generics,
                      # NullRenderer, GLMakieRenderer/CairoMakieRenderer stubs
-ext/
-  F1TenthGLMakieExt.jl
-  F1TenthCairoMakieExt.jl
+  glmakie.jl         # GLMakieRenderer method + GLMakieRendererImpl struct
+  cairomakie.jl       # CairoMakieRenderer method + CairoMakieRendererImpl struct
 test/render/
   testutils.jl       # shared small-track fixture
   null_test.jl
@@ -265,15 +281,14 @@ test/render/
   cairomakie_test.jl
 ```
 
-`src/F1Tenth.jl` gains one new `include("render/interface.jl")` and
-exports `AbstractRenderer, NullRenderer, GLMakieRenderer,
-CairoMakieRenderer, init!, render!, close!, reset!`. `Project.toml`
-gains `GLMakie`/`CairoMakie` under `[weakdeps]` and a matching
-`[extensions]` table; `test/exports_test.jl` is extended to cover the
-new exported names, and the test environment (`[extras]`/test
-`Project.toml`) adds `GLMakie`/`CairoMakie` as real test-only
-dependencies so both extensions are actually exercised in CI despite
-being weakdeps at the package level.
+`src/F1Tenth.jl` gains three new `include`s (`render/interface.jl`,
+`render/glmakie.jl`, `render/cairomakie.jl`) and exports
+`AbstractRenderer, NullRenderer, GLMakieRenderer, CairoMakieRenderer,
+init!, render!, close!, reset!`. `Project.toml` gains `GLMakie`/
+`CairoMakie` as regular `[deps]` + `[compat]` entries, same as every
+other dependency — no `[weakdeps]`/`[extensions]`/`[extras]`/`[targets]`
+changes needed, since they're no longer conditionally loaded.
+`test/exports_test.jl` is extended to cover the new exported names.
 
 ## Open questions / deferred items for a future phase
 
@@ -283,3 +298,12 @@ being weakdeps at the package level.
   of the 3-tier Channel pipeline owns it, whether render calls can be
   dropped/coalesced under backpressure) is entirely undecided here and
   left for Phase 4's own brainstorming.
+- Making `GLMakieRenderer`/`CairoMakieRenderer` package extensions again
+  (restoring the original goal of Decision 3) requires reworking Phase
+  1's `mtk_models.jl` `__init__` pattern so it no longer `@eval`s into
+  the `F1Tenth` module's own namespace, while preserving `step_dynamics`'s
+  zero-allocation guarantee — e.g. a concretely-typed callable wrapper,
+  `FunctionWrappers.jl`, or a properly `RuntimeGeneratedFunctions.jl`-cached
+  setup. Deliberately out of scope for Phase 3 (touches `src/dynamics/`,
+  reopens reviewed/merged Phase 1 work); flagged here for whoever revisits
+  the dependency-weight tradeoff later.
