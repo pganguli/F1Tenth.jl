@@ -7,19 +7,19 @@ function _commonroad_params()
         μ=1.0489,
         C_Sf=21.92 / 1.0489,
         C_Sr=21.92 / 1.0489,
-        l_f=0.3048 * 3.793293,
-        l_r=0.3048 * 4.667707,
+        lᶠ=0.3048 * 3.793293,
+        lʳ=0.3048 * 4.667707,
         h=0.3048 * 2.01355,
         m=4.4482216152605 / 0.3048 * 74.91452,
-        I_z=4.4482216152605 * 0.3048 * 1321.416,
-        δ_min=-1.066,
-        δ_max=1.066,
-        δ̇_min=-0.4,
-        δ̇_max=0.4,
-        v_min=-13.6,
-        v_max=50.8,
+        Iᶻ=4.4482216152605 * 0.3048 * 1321.416,
+        δ⁻=-1.066,
+        δ⁺=1.066,
+        δ̇⁻=-0.4,
+        δ̇⁺=0.4,
+        v⁻=-13.6,
+        v⁺=50.8,
         v_switch=7.319,
-        a_max=11.5,
+        a⁺=11.5,
     )
 end
 
@@ -31,13 +31,13 @@ function _rollout_ks_only(state0::F1Tenth.State, action::F1Tenth.Action,
     for _ in 1:steps
         sv = F1Tenth.steering_constraint(state[3], action[1], params)
         accl = F1Tenth.accl_constraints(state[4], action[2], params)
-        p = (params.μ, params.C_Sf, params.C_Sr, params.l_f, params.l_r,
-             params.h, params.m, params.I_z, sv, accl)
-        k1 = F1Tenth.KS_RHS(state, p)
-        k2 = F1Tenth.KS_RHS(state + dt * (k1 / 2), p)
-        k3 = F1Tenth.KS_RHS(state + dt * (k2 / 2), p)
-        k4 = F1Tenth.KS_RHS(state + dt * k3, p)
-        state = state + dt * (1 / 6) * (k1 + 2 * k2 + 2 * k3 + k4)
+        p = (params.μ, params.C_Sf, params.C_Sr, params.lᶠ, params.lʳ,
+             params.h, params.m, params.Iᶻ, sv, accl)
+        k₁ = F1Tenth.KS_RHS(state, p)
+        k₂ = F1Tenth.KS_RHS(state + dt * (k₁ / 2), p)
+        k₃ = F1Tenth.KS_RHS(state + dt * (k₂ / 2), p)
+        k₄ = F1Tenth.KS_RHS(state + dt * k₃, p)
+        state = state + dt * (1 / 6) * (k₁ + 2 * k₂ + 2 * k₃ + k₄)
     end
     return state
 end

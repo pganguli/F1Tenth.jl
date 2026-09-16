@@ -1,64 +1,64 @@
 struct VehicleParams
-    μ::Float64
-    C_Sf::Float64
-    C_Sr::Float64
-    l_f::Float64
-    l_r::Float64
-    h::Float64
-    m::Float64
-    I_z::Float64
-    δ_min::Float64
-    δ_max::Float64
-    δ̇_min::Float64
-    δ̇_max::Float64
-    v_switch::Float64
-    a_max::Float64
-    v_min::Float64
-    v_max::Float64
+    μ::Float64         # tire-road friction coefficient
+    C_Sf::Float64       # cornering stiffness, front
+    C_Sr::Float64       # cornering stiffness, rear
+    lᶠ::Float64         # distance from center of gravity to front axle
+    lʳ::Float64         # distance from center of gravity to rear axle
+    h::Float64           # center of gravity height
+    m::Float64           # vehicle mass
+    Iᶻ::Float64         # yaw moment of inertia
+    δ⁻::Float64         # minimum steering angle
+    δ⁺::Float64         # maximum steering angle
+    δ̇⁻::Float64         # minimum steering velocity (rate of change of steering angle)
+    δ̇⁺::Float64         # maximum steering velocity
+    v_switch::Float64   # velocity above which peak acceleration starts scaling down
+    a⁺::Float64         # maximum longitudinal acceleration
+    v⁻::Float64         # minimum longitudinal velocity
+    v⁺::Float64         # maximum longitudinal velocity
 end
 
 function VehicleParams(;
     μ::Float64=1.0489,
     C_Sf::Float64=4.718,
     C_Sr::Float64=5.4562,
-    l_f::Float64=0.15875,
-    l_r::Float64=0.17145,
+    lᶠ::Float64=0.15875,
+    lʳ::Float64=0.17145,
     h::Float64=0.074,
     m::Float64=3.74,
-    I_z::Float64=0.04712,
-    δ_min::Float64=-0.4189,
-    δ_max::Float64=0.4189,
-    δ̇_min::Float64=-3.2,
-    δ̇_max::Float64=3.2,
+    Iᶻ::Float64=0.04712,
+    δ⁻::Float64=-0.4189,
+    δ⁺::Float64=0.4189,
+    δ̇⁻::Float64=-3.2,
+    δ̇⁺::Float64=3.2,
     v_switch::Float64=7.319,
-    a_max::Float64=9.51,
-    v_min::Float64=-5.0,
-    v_max::Float64=20.0,
+    a⁺::Float64=9.51,
+    v⁻::Float64=-5.0,
+    v⁺::Float64=20.0,
 )
-    return VehicleParams(μ, C_Sf, C_Sr, l_f, l_r, h, m, I_z, δ_min, δ_max,
-                          δ̇_min, δ̇_max, v_switch, a_max, v_min, v_max)
+    return VehicleParams(μ, C_Sf, C_Sr, lᶠ, lʳ, h, m, Iᶻ, δ⁻, δ⁺,
+                          δ̇⁻, δ̇⁺, v_switch, a⁺, v⁻, v⁺)
 end
 
 function steering_constraint(steering_angle::Float64, steering_velocity::Float64,
                               params::VehicleParams)
-    if (steering_angle <= params.δ_min && steering_velocity <= 0) ||
-       (steering_angle >= params.δ_max && steering_velocity >= 0)
+    if (steering_angle <= params.δ⁻ && steering_velocity <= 0) ||
+       (steering_angle >= params.δ⁺ && steering_velocity >= 0)
         return 0.0
-    elseif steering_velocity <= params.δ̇_min
-        return params.δ̇_min
-    elseif steering_velocity >= params.δ̇_max
-        return params.δ̇_max
+    elseif steering_velocity <= params.δ̇⁻
+        return params.δ̇⁻
+    elseif steering_velocity >= params.δ̇⁺
+        return params.δ̇⁺
     else
         return steering_velocity
     end
 end
 
 function accl_constraints(vel::Float64, accl::Float64, params::VehicleParams)
-    pos_limit = vel > params.v_switch ? params.a_max * params.v_switch / vel : params.a_max
-    if (vel <= params.v_min && accl <= 0) || (vel >= params.v_max && accl >= 0)
+    pos_limit = vel > params.v_switch ? params.a⁺ * params.v_switch / vel : params.a⁺
+    if (vel <= params.v⁻ && accl <= 0) || (vel >= params.v⁺ && accl >= 0)
         return 0.0
-    elseif accl <= -params.a_max
-        return -params.a_max
+    elseif accl <= -params.a⁺
+        return -params.a⁺
     elseif accl >= pos_limit
         return pos_limit
     else

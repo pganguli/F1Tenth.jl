@@ -3,7 +3,20 @@ using ModelingToolkit: t_nounits as t, D_nounits as D
 using Symbolics: build_function
 using StaticArrays: SVector
 
-@parameters μ C_Sf C_Sr l_f l_r h m I_z δ̇ a
+# μ           tire-road friction coefficient
+# C_Sf/C_Sr   cornering stiffness, front/rear
+# lᶠ/lʳ       distance from center of gravity to front/rear axle
+# h           center of gravity height
+# m           vehicle mass
+# Iᶻ          yaw moment of inertia
+# δ̇           steering velocity (control input)
+# a           longitudinal acceleration (control input)
+@parameters μ C_Sf C_Sr lᶠ lʳ h m Iᶻ δ̇ a
+# x, y        position
+# δ           steering angle
+# v           longitudinal velocity
+# ψ/ψ̇         yaw angle / yaw rate
+# β           slip angle at the vehicle center
 @variables x(t) y(t) δ(t) v(t) ψ(t) ψ̇(t) β(t)
 
 const _MTK_G = 9.81
@@ -13,7 +26,7 @@ const _ks_eqs = [
     D(y) ~ v * sin(ψ),
     D(δ) ~ δ̇,
     D(v) ~ a,
-    D(ψ) ~ v / (l_f + l_r) * tan(δ),
+    D(ψ) ~ v / (lᶠ + lʳ) * tan(δ),
     D(ψ̇) ~ 0.0,
     D(β) ~ 0.0,
 ]
@@ -25,30 +38,30 @@ const _st_eqs = [
     D(v) ~ a,
     D(ψ) ~ ψ̇,
     D(ψ̇) ~
-        -μ * m / (v * I_z * (l_r + l_f)) *
-            (l_f^2 * C_Sf * (_MTK_G * l_r - a * h) +
-             l_r^2 * C_Sr * (_MTK_G * l_f + a * h)) * ψ̇ +
-        μ * m / (I_z * (l_r + l_f)) *
-            (l_r * C_Sr * (_MTK_G * l_f + a * h) -
-             l_f * C_Sf * (_MTK_G * l_r - a * h)) * β +
-        μ * m / (I_z * (l_r + l_f)) *
-            l_f * C_Sf * (_MTK_G * l_r - a * h) * δ,
+        -μ * m / (v * Iᶻ * (lʳ + lᶠ)) *
+            (lᶠ^2 * C_Sf * (_MTK_G * lʳ - a * h) +
+             lʳ^2 * C_Sr * (_MTK_G * lᶠ + a * h)) * ψ̇ +
+        μ * m / (Iᶻ * (lʳ + lᶠ)) *
+            (lʳ * C_Sr * (_MTK_G * lᶠ + a * h) -
+             lᶠ * C_Sf * (_MTK_G * lʳ - a * h)) * β +
+        μ * m / (Iᶻ * (lʳ + lᶠ)) *
+            lᶠ * C_Sf * (_MTK_G * lʳ - a * h) * δ,
     D(β) ~
-        (μ / (v^2 * (l_r + l_f)) *
-            (C_Sr * (_MTK_G * l_f + a * h) * l_r -
-             C_Sf * (_MTK_G * l_r - a * h) * l_f) - 1) * ψ̇ -
-        μ / (v * (l_r + l_f)) *
-            (C_Sr * (_MTK_G * l_f + a * h) +
-             C_Sf * (_MTK_G * l_r - a * h)) * β +
-        μ / (v * (l_r + l_f)) *
-            (C_Sf * (_MTK_G * l_r - a * h)) * δ,
+        (μ / (v^2 * (lʳ + lᶠ)) *
+            (C_Sr * (_MTK_G * lᶠ + a * h) * lʳ -
+             C_Sf * (_MTK_G * lʳ - a * h) * lᶠ) - 1) * ψ̇ -
+        μ / (v * (lʳ + lᶠ)) *
+            (C_Sr * (_MTK_G * lᶠ + a * h) +
+             C_Sf * (_MTK_G * lʳ - a * h)) * β +
+        μ / (v * (lʳ + lᶠ)) *
+            (C_Sf * (_MTK_G * lʳ - a * h)) * δ,
 ]
 
 const KS_MODE = System(_ks_eqs, t; name=:ks_mode)
 const ST_MODE = System(_st_eqs, t; name=:st_mode)
 
 const _state_syms = [x, y, δ, v, ψ, ψ̇, β]
-const _param_syms = [μ, C_Sf, C_Sr, l_f, l_r, h, m, I_z, δ̇, a]
+const _param_syms = [μ, C_Sf, C_Sr, lᶠ, lʳ, h, m, Iᶻ, δ̇, a]
 
 function _rhs_expr(eqs, state_syms, param_syms)
     # Passing the RHS list as an SVector (rather than a plain Vector) tells
@@ -96,7 +109,7 @@ end
 # KS_RHS(state, p) -> SVector{7,Float64}
 #
 # Kinematic single-track model RHS. `state` is `(x, y, δ, v, ψ, ψ̇, β)` and
-# `p` is `(μ, C_Sf, C_Sr, l_f, l_r, h, m, I_z, δ̇, a)` -- i.e. the 8 physics
+# `p` is `(μ, C_Sf, C_Sr, lᶠ, lʳ, h, m, Iᶻ, δ̇, a)` -- i.e. the 8 physics
 # parameters followed by the control input `(steering_velocity,
 # acceleration)`. The control input must already be clamped by the caller
 # (e.g. via `steering_constraint`/`accl_constraints`) -- this function does

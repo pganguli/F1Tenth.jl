@@ -7,8 +7,8 @@ const Action = SVector{2,Float64}
     x, y, δ, v, ψ, ψ̇, β = state
     sv = steering_constraint(δ, action[1], params)
     accl = accl_constraints(v, action[2], params)
-    p = (params.μ, params.C_Sf, params.C_Sr, params.l_f, params.l_r,
-         params.h, params.m, params.I_z, sv, accl)
+    p = (params.μ, params.C_Sf, params.C_Sr, params.lᶠ, params.lʳ,
+         params.h, params.m, params.Iᶻ, sv, accl)
     if abs(v) < 0.5
         # Python's vehicle_dynamics_st, when it internally switches to the
         # kinematic model for |v| < 0.5, does *not* zero ψ̇_dot like the
@@ -19,7 +19,7 @@ const Action = SVector{2,Float64}
         # simplification is corrected here, at the single per-stage
         # evaluation point, rather than in KS_RHS itself.
         ks = KS_RHS(state, p)
-        lwb = params.l_f + params.l_r
+        lwb = params.lᶠ + params.lʳ
         ψ̇_dot = accl / lwb * tan(δ) + v / (lwb * cos(δ)^2) * sv
         return State(ks[1], ks[2], ks[3], ks[4], ks[5], ψ̇_dot, 0.0)
     else
@@ -27,12 +27,14 @@ const Action = SVector{2,Float64}
     end
 end
 
+# k₁..k₄: classical RK4 stage derivatives (dynamics_rhs evaluated at the
+# start, two midpoint estimates, and the endpoint of the step).
 function step_dynamics(state::State, action::Action, params::VehicleParams, dt::Float64)
-    k1 = dynamics_rhs(state, action, params)
-    k2 = dynamics_rhs(state + dt * (k1 / 2), action, params)
-    k3 = dynamics_rhs(state + dt * (k2 / 2), action, params)
-    k4 = dynamics_rhs(state + dt * k3, action, params)
-    new_state = state + dt * (1 / 6) * (k1 + 2 * k2 + 2 * k3 + k4)
+    k₁ = dynamics_rhs(state, action, params)
+    k₂ = dynamics_rhs(state + dt * (k₁ / 2), action, params)
+    k₃ = dynamics_rhs(state + dt * (k₂ / 2), action, params)
+    k₄ = dynamics_rhs(state + dt * k₃, action, params)
+    new_state = state + dt * (1 / 6) * (k₁ + 2 * k₂ + 2 * k₃ + k₄)
 
     x, y, δ, v, ψ, ψ̇, β = new_state
     ψ = mod(ψ, 2 * pi)
