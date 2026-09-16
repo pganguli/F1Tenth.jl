@@ -54,10 +54,13 @@ Symbolics.jl, StaticArrays.jl, DifferentialEquations.jl, Test (stdlib).
   m, Iᶻ, δ⁻, δ⁺, δ̇⁻, δ̇⁺, vₛ, a⁺, v⁻, v⁺ ::
   Float64`, and a keyword constructor `VehicleParams(; μ=1.0489, ...)`
   with the defaults listed in Global Constraints.
-- Produces: `steering_constraint(steering_angle::Float64,
-  steering_velocity::Float64, params::VehicleParams) -> Float64`.
-- Produces: `accl_constraints(vel::Float64, accl::Float64,
-  params::VehicleParams) -> Float64`.
+- Produces: `steering_constraint(δ::Float64,
+  δ̇::Float64, params::VehicleParams) -> Float64`.
+- Produces: `accl_constraint(v::Float64, a::Float64,
+  params::VehicleParams) -> Float64` (renamed from the plural
+  `accl_constraints` for consistency with the singular `steering_constraint`
+  — the original Python source's `steering_constraint`/`accl_constraints`
+  naming was itself inconsistent).
 
 - [ ] **Step 1: Add StaticArrays dependency**
 
@@ -111,20 +114,20 @@ end
     @test F1Tenth.steering_constraint(0.0, 10.0, p) == p.δ̇⁺
 end
 
-@testset "accl_constraints" begin
+@testset "accl_constraint" begin
     p = F1Tenth.VehicleParams()
     # within bounds, below vₛ: passes through unchanged
-    @test F1Tenth.accl_constraints(1.0, 2.0, p) == 2.0
+    @test F1Tenth.accl_constraint(1.0, 2.0, p) == 2.0
     # at v⁺, positive accel requested -> zeroed
-    @test F1Tenth.accl_constraints(p.v⁺, 1.0, p) == 0.0
+    @test F1Tenth.accl_constraint(p.v⁺, 1.0, p) == 0.0
     # at v⁻, negative accel requested -> zeroed
-    @test F1Tenth.accl_constraints(p.v⁻, -1.0, p) == 0.0
+    @test F1Tenth.accl_constraint(p.v⁻, -1.0, p) == 0.0
     # requested accel below -a⁺ -> clamped
-    @test F1Tenth.accl_constraints(1.0, -100.0, p) == -p.a⁺
-    # above vₛ, positive-limit scales down: pos_limit = a⁺*vₛ/vel
-    vel = p.vₛ * 2
-    pos_limit = p.a⁺ * p.vₛ / vel
-    @test F1Tenth.accl_constraints(vel, 100.0, p) == pos_limit
+    @test F1Tenth.accl_constraint(1.0, -100.0, p) == -p.a⁺
+    # above vₛ, positive-limit scales down: pos_limit = a⁺*vₛ/v
+    v = p.vₛ * 2
+    pos_limit = p.a⁺ * p.vₛ / v
+    @test F1Tenth.accl_constraint(v, 100.0, p) == pos_limit
 end
 ```
 
@@ -142,7 +145,7 @@ end
 - [ ] **Step 3: Run tests to verify they fail**
 
 Run: `cd /home/pganguli/Downloads/f1tenth/F1Tenth.jl && julia --project=. -e 'import Pkg; Pkg.test()'`
-Expected: FAIL — `VehicleParams`/`steering_constraint`/`accl_constraints`
+Expected: FAIL — `VehicleParams`/`steering_constraint`/`accl_constraint`
 not defined.
 
 - [ ] **Step 4: Implement `params.jl`**
@@ -191,30 +194,30 @@ function VehicleParams(;
                           δ̇⁻, δ̇⁺, vₛ, a⁺, v⁻, v⁺)
 end
 
-function steering_constraint(steering_angle::Float64, steering_velocity::Float64,
+function steering_constraint(δ::Float64, δ̇::Float64,
                               params::VehicleParams)
-    if (steering_angle <= params.δ⁻ && steering_velocity <= 0) ||
-       (steering_angle >= params.δ⁺ && steering_velocity >= 0)
+    if (δ <= params.δ⁻ && δ̇ <= 0) ||
+       (δ >= params.δ⁺ && δ̇ >= 0)
         return 0.0
-    elseif steering_velocity <= params.δ̇⁻
+    elseif δ̇ <= params.δ̇⁻
         return params.δ̇⁻
-    elseif steering_velocity >= params.δ̇⁺
+    elseif δ̇ >= params.δ̇⁺
         return params.δ̇⁺
     else
-        return steering_velocity
+        return δ̇
     end
 end
 
-function accl_constraints(vel::Float64, accl::Float64, params::VehicleParams)
-    pos_limit = vel > params.vₛ ? params.a⁺ * params.vₛ / vel : params.a⁺
-    if (vel <= params.v⁻ && accl <= 0) || (vel >= params.v⁺ && accl >= 0)
+function accl_constraint(v::Float64, a::Float64, params::VehicleParams)
+    pos_limit = v > params.vₛ ? params.a⁺ * params.vₛ / v : params.a⁺
+    if (v <= params.v⁻ && a <= 0) || (v >= params.v⁺ && a >= 0)
         return 0.0
-    elseif accl <= -params.a⁺
+    elseif a <= -params.a⁺
         return -params.a⁺
-    elseif accl >= pos_limit
+    elseif a >= pos_limit
         return pos_limit
     else
-        return accl
+        return a
     end
 end
 ```
@@ -471,14 +474,14 @@ git commit -m "Add MTK KS/ST symbolic models and generated RHS functions"
 
 **Interfaces:**
 - Consumes: `F1Tenth.VehicleParams`, `F1Tenth.steering_constraint`,
-  `F1Tenth.accl_constraints` (Task 1); `F1Tenth.KS_RHS`, `F1Tenth.ST_RHS`
-  (Task 2, each `f(state::SVector{7,Float64}, p::NTuple{10,Float64}) ->
+  `F1Tenth.accl_constraint` (Task 1); `F1Tenth.KS_RHS`, `F1Tenth.ST_RHS`
+  (Task 2, each `f(𝐱::SVector{7,Float64}, p::NTuple{10,Float64}) ->
   SVector{7,Float64}`).
 - Produces: `const State = SVector{7,Float64}`, `const Action =
   SVector{2,Float64}` type aliases.
-- Produces: `dynamics_rhs(state::State, action::Action,
+- Produces: `dynamics_rhs(𝐱::State, action::Action,
   params::VehicleParams) -> State`.
-- Produces: `step_dynamics(state::State, action::Action,
+- Produces: `step_dynamics(𝐱::State, action::Action,
   params::VehicleParams, dt::Float64) -> State`.
 
 - [ ] **Step 1: Write the failing tests**
@@ -526,21 +529,21 @@ end
 
 # Loops the KS RHS only, bypassing the |v|<0.5 mode switch, matching
 # Python's separate func_KS-only rollout used for the *_ks_gt literals.
-function _rollout_ks_only(state0::F1Tenth.State, action::F1Tenth.Action,
+function _rollout_ks_only(𝐱₀::F1Tenth.State, action::F1Tenth.Action,
                            params::F1Tenth.VehicleParams, dt::Float64, steps::Int)
-    state = state0
+    𝐱 = 𝐱₀
     for _ in 1:steps
-        sv = F1Tenth.steering_constraint(state[3], action[1], params)
-        accl = F1Tenth.accl_constraints(state[4], action[2], params)
+        δ̇ = F1Tenth.steering_constraint(𝐱[3], action[1], params)
+        a = F1Tenth.accl_constraint(𝐱[4], action[2], params)
         p = (params.μ, params.Cᵦᶠ, params.Cᵦʳ, params.lᶠ, params.lʳ,
-             params.h, params.m, params.Iᶻ, sv, accl)
-        k₁ = F1Tenth.KS_RHS(state, p)
-        k₂ = F1Tenth.KS_RHS(state + dt * (k₁ / 2), p)
-        k₃ = F1Tenth.KS_RHS(state + dt * (k₂ / 2), p)
-        k₄ = F1Tenth.KS_RHS(state + dt * k₃, p)
-        state = state + dt * (1 / 6) * (k₁ + 2 * k₂ + 2 * k₃ + k₄)
+             params.h, params.m, params.Iᶻ, δ̇, a)
+        k₁ = F1Tenth.KS_RHS(𝐱, p)
+        k₂ = F1Tenth.KS_RHS(𝐱 + dt * (k₁ / 2), p)
+        k₃ = F1Tenth.KS_RHS(𝐱 + dt * (k₂ / 2), p)
+        k₄ = F1Tenth.KS_RHS(𝐱 + dt * k₃, p)
+        𝐱 = 𝐱 + dt * (1 / 6) * (k₁ + 2 * k₂ + 2 * k₃ + k₄)
     end
-    return state
+    return 𝐱
 end
 
 const G = 9.81
@@ -614,7 +617,7 @@ end
     p = F1Tenth.VehicleParams()
     u = F1Tenth.Action(0.1, 2.0)
     dt = 0.01
-    state = ZERO7
+    𝐱 = ZERO7
     checkpoints = Dict(
         100 => F1Tenth.State(0.9930439005626006, 0.09991503614876832,
                               0.10000000000000006, 2.0000000000000013,
@@ -630,9 +633,9 @@ end
                                -0.9299998114470461),
     )
     for i in 1:1000
-        state = F1Tenth.step_dynamics(state, u, p, dt)
+        𝐱 = F1Tenth.step_dynamics(𝐱, u, p, dt)
         if haskey(checkpoints, i)
-            @test isapprox(state, checkpoints[i]; atol=1e-5)
+            @test isapprox(𝐱, checkpoints[i]; atol=1e-5)
         end
     end
 end
@@ -640,9 +643,9 @@ end
 @testset "step_dynamics is allocation-free" begin
     p = F1Tenth.VehicleParams()
     u = F1Tenth.Action(0.1, 1.0)
-    state = F1Tenth.State(0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0)
-    F1Tenth.step_dynamics(state, u, p, 0.01) # warmup
-    @test (@allocated F1Tenth.step_dynamics(state, u, p, 0.01)) == 0
+    𝐱 = F1Tenth.State(0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0)
+    F1Tenth.step_dynamics(𝐱, u, p, 0.01) # warmup
+    @test (@allocated F1Tenth.step_dynamics(𝐱, u, p, 0.01)) == 0
 end
 ```
 
@@ -674,20 +677,20 @@ using StaticArrays
 const State = SVector{7,Float64}
 const Action = SVector{2,Float64}
 
-@inline function dynamics_rhs(state::State, action::Action, params::VehicleParams)
-    sv = steering_constraint(state[3], action[1], params)
-    accl = accl_constraints(state[4], action[2], params)
+@inline function dynamics_rhs(𝐱::State, action::Action, params::VehicleParams)
+    δ̇ = steering_constraint(𝐱[3], action[1], params)
+    a = accl_constraint(𝐱[4], action[2], params)
     p = (params.μ, params.Cᵦᶠ, params.Cᵦʳ, params.lᶠ, params.lʳ,
-         params.h, params.m, params.Iᶻ, sv, accl)
-    return abs(state[4]) < 0.5 ? KS_RHS(state, p) : ST_RHS(state, p)
+         params.h, params.m, params.Iᶻ, δ̇, a)
+    return abs(𝐱[4]) < 0.5 ? KS_RHS(𝐱, p) : ST_RHS(𝐱, p)
 end
 
-function step_dynamics(state::State, action::Action, params::VehicleParams, dt::Float64)
-    k₁ = dynamics_rhs(state, action, params)
-    k₂ = dynamics_rhs(state + dt * (k₁ / 2), action, params)
-    k₃ = dynamics_rhs(state + dt * (k₂ / 2), action, params)
-    k₄ = dynamics_rhs(state + dt * k₃, action, params)
-    new_state = state + dt * (1 / 6) * (k₁ + 2 * k₂ + 2 * k₃ + k₄)
+function step_dynamics(𝐱::State, action::Action, params::VehicleParams, dt::Float64)
+    k₁ = dynamics_rhs(𝐱, action, params)
+    k₂ = dynamics_rhs(𝐱 + dt * (k₁ / 2), action, params)
+    k₃ = dynamics_rhs(𝐱 + dt * (k₂ / 2), action, params)
+    k₄ = dynamics_rhs(𝐱 + dt * k₃, action, params)
+    new_state = 𝐱 + dt * (1 / 6) * (k₁ + 2 * k₂ + 2 * k₃ + k₄)
 
     yaw = new_state[5]
     if yaw > 2 * pi
@@ -744,7 +747,7 @@ git commit -m "Add mode-switching dynamics_rhs and fixed-step step_dynamics"
 **Interfaces:**
 - Consumes: `F1Tenth.State`, `F1Tenth.Action`, `F1Tenth.VehicleParams`,
   `F1Tenth.dynamics_rhs` (Task 3).
-- Produces: `simulate(state0::State, control_fn, params::VehicleParams,
+- Produces: `simulate(𝐱₀::State, control_fn, params::VehicleParams,
   tspan::Tuple{Float64,Float64}; solver=Tsit5()) ->
   SciMLBase.ODESolution`, where `control_fn(t::Float64) -> Action` supplies
   the control input at time `t`.
@@ -797,13 +800,13 @@ using Test
         a⁺=11.5,
     )
     u = F1Tenth.Action(0.15, 0.63 * 9.81)
-    state0 = F1Tenth.State(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+    𝐱₀ = F1Tenth.State(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
     gt = F1Tenth.State(3.0731976046859715, 0.2869835398304389,
                         0.1500000000000000, 6.1802999999999999,
                         0.1097747074946325, 0.3248268063223301,
                         0.0697547542798040)
 
-    sol = F1Tenth.simulate(state0, _ -> u, p, (0.0, 1.0))
+    sol = F1Tenth.simulate(𝐱₀, _ -> u, p, (0.0, 1.0))
     final = F1Tenth.State(sol.u[end])
 
     @test isapprox(final, gt; atol=1e-2)
@@ -836,10 +839,10 @@ Create `src/dynamics/solve.jl`:
 ```julia
 using DifferentialEquations
 
-function simulate(state0::State, control_fn, params::VehicleParams,
+function simulate(𝐱₀::State, control_fn, params::VehicleParams,
                    tspan::Tuple{Float64,Float64}; solver=Tsit5())
     f = (u, _p, t) -> dynamics_rhs(State(u), control_fn(t), params)
-    prob = ODEProblem(f, state0, tspan)
+    prob = ODEProblem(f, 𝐱₀, tspan)
     return solve(prob, solver)
 end
 ```
