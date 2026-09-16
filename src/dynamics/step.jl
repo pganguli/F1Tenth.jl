@@ -11,17 +11,18 @@ const Action = SVector{2,Float64}
          params.h, params.m, params.Iᶻ, sv, accl)
     if abs(v) < 0.5
         # Python's vehicle_dynamics_st, when it internally switches to the
-        # kinematic model for |v| < 0.5, does *not* zero ψ̇_dot like the
-        # standalone vehicle_dynamics_ks does -- it computes the derivative
-        # of the KS yaw-rate expression w.r.t. time (only β_dot is zeroed).
+        # kinematic model for |v| < 0.5, does *not* zero ψ̈ (yaw angular
+        # acceleration, d/dt of the yaw-rate state) like the standalone
+        # vehicle_dynamics_ks does -- it computes the derivative of the KS
+        # yaw-rate expression w.r.t. time (only β_dot is zeroed).
         # KS_RHS/KS_MODE (Task 2) deliberately set both to zero for a
         # cleaner standalone HybridSystem-mode equation set, so that
         # simplification is corrected here, at the single per-stage
         # evaluation point, rather than in KS_RHS itself.
         ks = KS_RHS(state, p)
         lwb = params.lᶠ + params.lʳ
-        ψ̇_dot = accl / lwb * tan(δ) + v / (lwb * cos(δ)^2) * sv
-        return State(ks[1], ks[2], ks[3], ks[4], ks[5], ψ̇_dot, 0.0)
+        ψ̈ = accl / lwb * tan(δ) + v / (lwb * cos(δ)^2) * sv
+        return State(ks[1], ks[2], ks[3], ks[4], ks[5], ψ̈, 0.0)
     else
         return ST_RHS(state, p)
     end
