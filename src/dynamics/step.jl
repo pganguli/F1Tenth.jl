@@ -5,10 +5,10 @@ const Action = SVector{2,Float64}
 
 @inline function dynamics_rhs(𝐱::State, action::Action, params::VehicleParams)
     x, y, δ, v, ψ, ψ̇, β = 𝐱
-    sv = steering_constraint(δ, action[1], params)
-    accl = accl_constraint(v, action[2], params)
+    δ̇ = steering_constraint(δ, action[1], params)
+    a = accl_constraint(v, action[2], params)
     p = (params.μ, params.Cᵦᶠ, params.Cᵦʳ, params.lᶠ, params.lʳ,
-        params.h, params.m, params.Iᶻ, sv, accl)
+        params.h, params.m, params.Iᶻ, δ̇, a)
     if abs(v) < 0.5
         # Python's vehicle_dynamics_st, when it internally switches to the
         # kinematic model for |v| < 0.5, does *not* zero ψ̈ (yaw angular
@@ -21,7 +21,7 @@ const Action = SVector{2,Float64}
         # evaluation point, rather than in KS_RHS itself.
         ks = KS_RHS(𝐱, p)
         lʷᵇ = params.lᶠ + params.lʳ
-        ψ̈ = accl / lʷᵇ * tan(δ) + v / (lʷᵇ * cos(δ)^2) * sv
+        ψ̈ = a / lʷᵇ * tan(δ) + v / (lʷᵇ * cos(δ)^2) * δ̇
         return State(ks[1], ks[2], ks[3], ks[4], ks[5], ψ̈, 0.0)
     else
         return ST_RHS(𝐱, p)
