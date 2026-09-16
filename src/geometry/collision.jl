@@ -1,5 +1,5 @@
 using StaticArrays
-using LinearAlgebra: dot, normalize
+using LinearAlgebra: dot, normalize, hypot
 import NearestNeighbors
 
 function _sat_axes(vertices::Vector{SVector{2,Float64}})
@@ -51,7 +51,7 @@ end
 
 function check_track_collision(state::State, bvh::TrackBVH, car::CarFootprint)
     verts = car_vertices(state, car)
-    query_radius = car.length + bvh.max_half_length
+    query_radius = hypot(car.length, car.width) / 2 + bvh.max_half_length
     candidates = NearestNeighbors.inrange(bvh.tree, SVector(state[1], state[2]), query_radius)
     car_edges = [Segment(verts[i], verts[mod1(i + 1, 4)]) for i in 1:4]
     for idx in candidates
