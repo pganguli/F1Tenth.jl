@@ -12,4 +12,5 @@ using Test
     include("geometry/collision_test.jl")
     include("geometry/step2_test.jl")
     include("geometry/lazysets_export_test.jl")
+    include("exports_test.jl")
 end
