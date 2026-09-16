@@ -1,5 +1,5 @@
 module F1Tenth
 
-# Write your package code here.
+include("dynamics/params.jl")
 
 end

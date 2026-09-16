@@ -1,9 +1,13 @@
 name = "F1Tenth"
 uuid = "ec9dc3f2-e932-4b18-a493-a4686694dcbe"
-authors = ["Prateek Ganguli <prateek.ganguli@gmail.com> and contributors"]
 version = "1.0.0-DEV"
+authors = ["Prateek Ganguli <prateek.ganguli@gmail.com> and contributors"]
+
+[deps]
+StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 
 [compat]
+StaticArrays = "1.9.20"
 julia = "1.10.10"
 
 [extras]
