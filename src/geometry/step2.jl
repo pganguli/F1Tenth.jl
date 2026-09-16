@@ -1,12 +1,15 @@
+using Random: AbstractRNG, default_rng
+
 function step_multi_agent!(states::Vector{State}, actions::Vector{Action},
-    bvh::TrackBVH, params::VehicleParams, car::CarFootprint, dt::Float64, cfg::LiDARConfig)
+    bvh::TrackBVH, params::VehicleParams, car::CarFootprint, dt::Float64, cfg::LiDARConfig;
+    rng::AbstractRNG=default_rng())
     n = length(states)
     new_states = [step_dynamics(states[i], actions[i], params, dt) for i in 1:n]
 
     scans = Vector{Vector{Float64}}(undef, n)
     for i in 1:n
         others = [new_states[j] for j in 1:n if j != i]
-        scans[i] = scan(new_states[i], bvh, others, car, cfg)
+        scans[i] = scan(new_states[i], bvh, others, car, cfg; rng=rng)
     end
 
     car_flags = check_car_collisions(new_states, car)

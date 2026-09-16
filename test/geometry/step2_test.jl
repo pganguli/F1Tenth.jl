@@ -1,5 +1,6 @@
 using F1Tenth
 using StaticArrays
+using Random: MersenneTwister
 using Test
 
 function _square_room_bvh(half_side::Float64)
@@ -62,4 +63,24 @@ end
     @test collisions == [true, true]
     @test length(scans) == 2
     @test length(scans[1]) == cfg.num_beams
+end
+
+@testset "step_multi_agent!: LiDAR noise is actually applied to scans" begin
+    bvh = _square_room_bvh(50.0)
+    params = F1Tenth.VehicleParams()
+    car = F1Tenth.CarFootprint()
+    cfg = F1Tenth.LiDARConfig(; num_beams=5, fov=1.0, max_range=10.0, noise_std=0.05)
+
+    state = F1Tenth.State(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+    action = F1Tenth.Action(0.0, 0.0)
+
+    _, scans1, _ = F1Tenth.step_multi_agent!([state], [action], bvh, params, car, 0.0, cfg;
+        rng=MersenneTwister(1))
+    _, scans2, _ = F1Tenth.step_multi_agent!([state], [action], bvh, params, car, 0.0, cfg;
+        rng=MersenneTwister(2))
+    _, scans_clean, _ = F1Tenth.step_multi_agent!([state], [action], bvh, params, car, 0.0,
+        F1Tenth.LiDARConfig(; num_beams=5, fov=1.0, max_range=10.0, noise_std=0.0))
+
+    @test scans1[1] != scans2[1]
+    @test scans1[1] != scans_clean[1]
 end

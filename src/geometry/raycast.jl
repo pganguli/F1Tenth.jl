@@ -103,5 +103,5 @@ function scan(state::State, bvh::TrackBVH, other_agents::Vector{State},
     if rng !== nothing && cfg.noise_std > 0
         ranges .+= cfg.noise_std .* randn(rng, cfg.num_beams)
     end
-    return ranges
+    return clamp.(ranges, 0.0, cfg.max_range)
 end

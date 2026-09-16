@@ -65,3 +65,16 @@ end
     @test r1 == r2
     @test r1 != r3
 end
+
+@testset "scan: output is always clamped to [0, max_range] even with large noise" begin
+    bvh = _square_room_bvh(10.0)
+    car = F1Tenth.CarFootprint()
+    cfg = F1Tenth.LiDARConfig(; num_beams=50, fov=6.0, max_range=10.0, noise_std=100.0)
+    state = F1Tenth.State(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+
+    for seed in 1:10
+        ranges = F1Tenth.scan(state, bvh, F1Tenth.State[], car, cfg; rng=MersenneTwister(seed))
+        @test all(r -> r >= 0.0, ranges)
+        @test all(r -> r <= cfg.max_range, ranges)
+    end
+end
