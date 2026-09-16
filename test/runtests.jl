@@ -9,4 +9,5 @@ using Test
     include("geometry/track_test.jl")
     include("geometry/bvh_test.jl")
     include("geometry/raycast_test.jl")
+    include("geometry/collision_test.jl")
 end
