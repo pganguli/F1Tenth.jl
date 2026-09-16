@@ -1,0 +1,13 @@
+name = "F1Tenth"
+uuid = "ec9dc3f2-e932-4b18-a493-a4686694dcbe"
+authors = ["Prateek Ganguli <prateek.ganguli@gmail.com> and contributors"]
+version = "1.0.0-DEV"
+
+[compat]
+julia = "1.10.10"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]
