@@ -125,6 +125,25 @@ A `CarFootprint` is supplied once at each renderer's construction
 matching how Phase 2 already threads one fixed `CarFootprint` through
 `step_multi_agent!` for the whole sim run.
 
+`render!`'s `scans` argument carries only the numeric range per beam —
+it has no way to know the beam *angles* used to produce them, since
+those depend on `LiDARConfig.fov` (`scan`'s beams span `ψ - fov/2` to
+`ψ + fov/2`), which isn't part of `render!`'s three arguments. Drawing
+scan rays therefore requires the angle-defining config too. Rather than
+widen `render!`'s signature (which would break the direct
+`render!(renderer, step_multi_agent!(...)...)`  call shape from
+Decision 1), a `LiDARConfig` is supplied once at construction, exactly
+like `CarFootprint`: `GLMakieRenderer(track; car=CarFootprint(),
+cfg=LiDARConfig())`. This assumes `num_beams`/`fov` don't change
+mid-episode — true of every current caller (`cfg` is itself constructed
+once and threaded unchanged through a whole `step_multi_agent!` run) —
+and reconstructs each beam's angle the same way `scan` does:
+`range(ψ - cfg.fov/2, ψ + cfg.fov/2; length=cfg.num_beams)` (or the
+single-beam `[ψ]` case when `cfg.num_beams == 1`), applied to that
+tick's `states[i]` heading `ψ`. `CairoMakieRenderer` takes the same
+`cfg` keyword for the same reason, since its buffered history also
+needs beam angles to draw scan rays in the replayed frames.
+
 ### 4. `GLMakieRenderer`: Observable-based incremental live view
 
 `GLMakieRenderer(track; camera_mode=:fixed, ego_index=1,
