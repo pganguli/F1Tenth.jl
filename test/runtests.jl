@@ -7,4 +7,5 @@ using Test
     include("step_test.jl")
     include("solve_test.jl")
     include("geometry/track_test.jl")
+    include("geometry/bvh_test.jl")
 end
