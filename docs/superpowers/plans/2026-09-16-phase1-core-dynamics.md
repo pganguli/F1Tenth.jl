@@ -34,9 +34,9 @@ Symbolics.jl, StaticArrays.jl, DifferentialEquations.jl, Test (stdlib).
   inlined/erased) so a later phase can assemble a `HybridSystems.jl`
   `HybridSystem` from them without rework.
 - Default `VehicleParams` values (from Python `f110_env.py`): `μ=1.0489,
-  C_Sf=4.718, C_Sr=5.4562, l_f=0.15875, l_r=0.17145, h=0.074, m=3.74,
-  I_z=0.04712, δ_min=-0.4189, δ_max=0.4189, δ̇_min=-3.2, δ̇_max=3.2,
-  v_switch=7.319, a_max=9.51, v_min=-5.0, v_max=20.0`.
+  C_Sf=4.718, C_Sr=5.4562, lᶠ=0.15875, lʳ=0.17145, h=0.074, m=3.74,
+  Iᶻ=0.04712, δ⁻=-0.4189, δ⁺=0.4189, δ̇⁻=-3.2, δ̇⁺=3.2,
+  v_switch=7.319, a⁺=9.51, v⁻=-5.0, v⁺=20.0`.
 
 ---
 
@@ -50,8 +50,8 @@ Symbolics.jl, StaticArrays.jl, DifferentialEquations.jl, Test (stdlib).
 - Modify: `test/runtests.jl` (include the new test file)
 
 **Interfaces:**
-- Produces: `struct VehicleParams` with fields `μ, C_Sf, C_Sr, l_f, l_r, h,
-  m, I_z, δ_min, δ_max, δ̇_min, δ̇_max, v_switch, a_max, v_min, v_max ::
+- Produces: `struct VehicleParams` with fields `μ, C_Sf, C_Sr, lᶠ, lʳ, h,
+  m, Iᶻ, δ⁻, δ⁺, δ̇⁻, δ̇⁺, v_switch, a⁺, v⁻, v⁺ ::
   Float64`, and a keyword constructor `VehicleParams(; μ=1.0489, ...)`
   with the defaults listed in Global Constraints.
 - Produces: `steering_constraint(steering_angle::Float64,
@@ -82,19 +82,19 @@ using Test
     @test p.μ == 1.0489
     @test p.C_Sf == 4.718
     @test p.C_Sr == 5.4562
-    @test p.l_f == 0.15875
-    @test p.l_r == 0.17145
+    @test p.lᶠ == 0.15875
+    @test p.lʳ == 0.17145
     @test p.h == 0.074
     @test p.m == 3.74
-    @test p.I_z == 0.04712
-    @test p.δ_min == -0.4189
-    @test p.δ_max == 0.4189
-    @test p.δ̇_min == -3.2
-    @test p.δ̇_max == 3.2
+    @test p.Iᶻ == 0.04712
+    @test p.δ⁻ == -0.4189
+    @test p.δ⁺ == 0.4189
+    @test p.δ̇⁻ == -3.2
+    @test p.δ̇⁺ == 3.2
     @test p.v_switch == 7.319
-    @test p.a_max == 9.51
-    @test p.v_min == -5.0
-    @test p.v_max == 20.0
+    @test p.a⁺ == 9.51
+    @test p.v⁻ == -5.0
+    @test p.v⁺ == 20.0
 end
 
 @testset "steering_constraint" begin
@@ -102,28 +102,28 @@ end
     # within bounds: passes through unchanged
     @test F1Tenth.steering_constraint(0.0, 1.0, p) == 1.0
     # at upper angle limit, positive velocity requested -> zeroed
-    @test F1Tenth.steering_constraint(p.δ_max, 1.0, p) == 0.0
+    @test F1Tenth.steering_constraint(p.δ⁺, 1.0, p) == 0.0
     # at lower angle limit, negative velocity requested -> zeroed
-    @test F1Tenth.steering_constraint(p.δ_min, -1.0, p) == 0.0
-    # requested velocity below δ̇_min -> clamped
-    @test F1Tenth.steering_constraint(0.0, -10.0, p) == p.δ̇_min
-    # requested velocity above δ̇_max -> clamped
-    @test F1Tenth.steering_constraint(0.0, 10.0, p) == p.δ̇_max
+    @test F1Tenth.steering_constraint(p.δ⁻, -1.0, p) == 0.0
+    # requested velocity below δ̇⁻ -> clamped
+    @test F1Tenth.steering_constraint(0.0, -10.0, p) == p.δ̇⁻
+    # requested velocity above δ̇⁺ -> clamped
+    @test F1Tenth.steering_constraint(0.0, 10.0, p) == p.δ̇⁺
 end
 
 @testset "accl_constraints" begin
     p = F1Tenth.VehicleParams()
     # within bounds, below v_switch: passes through unchanged
     @test F1Tenth.accl_constraints(1.0, 2.0, p) == 2.0
-    # at v_max, positive accel requested -> zeroed
-    @test F1Tenth.accl_constraints(p.v_max, 1.0, p) == 0.0
-    # at v_min, negative accel requested -> zeroed
-    @test F1Tenth.accl_constraints(p.v_min, -1.0, p) == 0.0
-    # requested accel below -a_max -> clamped
-    @test F1Tenth.accl_constraints(1.0, -100.0, p) == -p.a_max
-    # above v_switch, positive-limit scales down: pos_limit = a_max*v_switch/vel
+    # at v⁺, positive accel requested -> zeroed
+    @test F1Tenth.accl_constraints(p.v⁺, 1.0, p) == 0.0
+    # at v⁻, negative accel requested -> zeroed
+    @test F1Tenth.accl_constraints(p.v⁻, -1.0, p) == 0.0
+    # requested accel below -a⁺ -> clamped
+    @test F1Tenth.accl_constraints(1.0, -100.0, p) == -p.a⁺
+    # above v_switch, positive-limit scales down: pos_limit = a⁺*v_switch/vel
     vel = p.v_switch * 2
-    pos_limit = p.a_max * p.v_switch / vel
+    pos_limit = p.a⁺ * p.v_switch / vel
     @test F1Tenth.accl_constraints(vel, 100.0, p) == pos_limit
 end
 ```
@@ -154,63 +154,63 @@ struct VehicleParams
     μ::Float64
     C_Sf::Float64
     C_Sr::Float64
-    l_f::Float64
-    l_r::Float64
+    lᶠ::Float64
+    lʳ::Float64
     h::Float64
     m::Float64
-    I_z::Float64
-    δ_min::Float64
-    δ_max::Float64
-    δ̇_min::Float64
-    δ̇_max::Float64
+    Iᶻ::Float64
+    δ⁻::Float64
+    δ⁺::Float64
+    δ̇⁻::Float64
+    δ̇⁺::Float64
     v_switch::Float64
-    a_max::Float64
-    v_min::Float64
-    v_max::Float64
+    a⁺::Float64
+    v⁻::Float64
+    v⁺::Float64
 end
 
 function VehicleParams(;
     μ::Float64=1.0489,
     C_Sf::Float64=4.718,
     C_Sr::Float64=5.4562,
-    l_f::Float64=0.15875,
-    l_r::Float64=0.17145,
+    lᶠ::Float64=0.15875,
+    lʳ::Float64=0.17145,
     h::Float64=0.074,
     m::Float64=3.74,
-    I_z::Float64=0.04712,
-    δ_min::Float64=-0.4189,
-    δ_max::Float64=0.4189,
-    δ̇_min::Float64=-3.2,
-    δ̇_max::Float64=3.2,
+    Iᶻ::Float64=0.04712,
+    δ⁻::Float64=-0.4189,
+    δ⁺::Float64=0.4189,
+    δ̇⁻::Float64=-3.2,
+    δ̇⁺::Float64=3.2,
     v_switch::Float64=7.319,
-    a_max::Float64=9.51,
-    v_min::Float64=-5.0,
-    v_max::Float64=20.0,
+    a⁺::Float64=9.51,
+    v⁻::Float64=-5.0,
+    v⁺::Float64=20.0,
 )
-    return VehicleParams(μ, C_Sf, C_Sr, l_f, l_r, h, m, I_z, δ_min, δ_max,
-                          δ̇_min, δ̇_max, v_switch, a_max, v_min, v_max)
+    return VehicleParams(μ, C_Sf, C_Sr, lᶠ, lʳ, h, m, Iᶻ, δ⁻, δ⁺,
+                          δ̇⁻, δ̇⁺, v_switch, a⁺, v⁻, v⁺)
 end
 
 function steering_constraint(steering_angle::Float64, steering_velocity::Float64,
                               params::VehicleParams)
-    if (steering_angle <= params.δ_min && steering_velocity <= 0) ||
-       (steering_angle >= params.δ_max && steering_velocity >= 0)
+    if (steering_angle <= params.δ⁻ && steering_velocity <= 0) ||
+       (steering_angle >= params.δ⁺ && steering_velocity >= 0)
         return 0.0
-    elseif steering_velocity <= params.δ̇_min
-        return params.δ̇_min
-    elseif steering_velocity >= params.δ̇_max
-        return params.δ̇_max
+    elseif steering_velocity <= params.δ̇⁻
+        return params.δ̇⁻
+    elseif steering_velocity >= params.δ̇⁺
+        return params.δ̇⁺
     else
         return steering_velocity
     end
 end
 
 function accl_constraints(vel::Float64, accl::Float64, params::VehicleParams)
-    pos_limit = vel > params.v_switch ? params.a_max * params.v_switch / vel : params.a_max
-    if (vel <= params.v_min && accl <= 0) || (vel >= params.v_max && accl >= 0)
+    pos_limit = vel > params.v_switch ? params.a⁺ * params.v_switch / vel : params.a⁺
+    if (vel <= params.v⁻ && accl <= 0) || (vel >= params.v⁺ && accl >= 0)
         return 0.0
-    elseif accl <= -params.a_max
-        return -params.a_max
+    elseif accl <= -params.a⁺
+        return -params.a⁺
     elseif accl >= pos_limit
         return pos_limit
     else
@@ -259,7 +259,7 @@ git commit -m "Add VehicleParams and control-input constraint functions"
   independent of the params struct's representation).
 - Produces: `const KS_RHS::Function` and `const ST_RHS::Function`, each
   callable as `f(state::SVector{7,Float64}, p::NTuple{10,Float64}) ->
-  SVector{7,Float64}` where `p = (μ, C_Sf, C_Sr, l_f, l_r, h, m, I_z, sv,
+  SVector{7,Float64}` where `p = (μ, C_Sf, C_Sr, lᶠ, lʳ, h, m, Iᶻ, sv,
   accl)` — the 8 physics parameters (in that order) followed by the
   already-clamped control input `(steering_velocity, acceleration)`.
 - Produces: `const KS_MODE::ModelingToolkit.ODESystem` and
@@ -295,17 +295,17 @@ using Test
     μ = 1.0489
     C_Sf = 21.92 / 1.0489
     C_Sr = 21.92 / 1.0489
-    l_f = 0.3048 * 3.793293
-    l_r = 0.3048 * 4.667707
+    lᶠ = 0.3048 * 3.793293
+    lʳ = 0.3048 * 4.667707
     h = 0.3048 * 2.01355
     m = 4.4482216152605 / 0.3048 * 74.91452
-    I_z = 4.4482216152605 * 0.3048 * 1321.416
+    Iᶻ = 4.4482216152605 * 0.3048 * 1321.416
 
     g = 9.81
     sv = 0.15
     accl = 0.63 * g
 
-    p = (μ, C_Sf, C_Sr, l_f, l_r, h, m, I_z, sv, accl)
+    p = (μ, C_Sf, C_Sr, lᶠ, lʳ, h, m, Iᶻ, sv, accl)
 
     # x_ks from Python test, padded with psi_dot=0, beta=0 to fill the
     # shared 7-element state space
@@ -330,8 +330,8 @@ using Test
 end
 
 @testset "KS_RHS / ST_RHS are allocation-free" begin
-    μ, C_Sf, C_Sr, l_f, l_r, h, m, I_z = 1.0489, 4.718, 5.4562, 0.15875, 0.17145, 0.074, 3.74, 0.04712
-    p = (μ, C_Sf, C_Sr, l_f, l_r, h, m, I_z, 0.1, 1.0)
+    μ, C_Sf, C_Sr, lᶠ, lʳ, h, m, Iᶻ = 1.0489, 4.718, 5.4562, 0.15875, 0.17145, 0.074, 3.74, 0.04712
+    p = (μ, C_Sf, C_Sr, lᶠ, lʳ, h, m, Iᶻ, 0.1, 1.0)
     state = SVector{7,Float64}(0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0)
     F1Tenth.KS_RHS(state, p) # warmup
     F1Tenth.ST_RHS(state, p) # warmup
@@ -508,19 +508,19 @@ function _commonroad_params()
         μ=1.0489,
         C_Sf=21.92 / 1.0489,
         C_Sr=21.92 / 1.0489,
-        l_f=0.3048 * 3.793293,
-        l_r=0.3048 * 4.667707,
+        lᶠ=0.3048 * 3.793293,
+        lʳ=0.3048 * 4.667707,
         h=0.3048 * 2.01355,
         m=4.4482216152605 / 0.3048 * 74.91452,
-        I_z=4.4482216152605 * 0.3048 * 1321.416,
-        δ_min=-1.066,
-        δ_max=1.066,
-        δ̇_min=-0.4,
-        δ̇_max=0.4,
-        v_min=-13.6,
-        v_max=50.8,
+        Iᶻ=4.4482216152605 * 0.3048 * 1321.416,
+        δ⁻=-1.066,
+        δ⁺=1.066,
+        δ̇⁻=-0.4,
+        δ̇⁺=0.4,
+        v⁻=-13.6,
+        v⁺=50.8,
         v_switch=7.319,
-        a_max=11.5,
+        a⁺=11.5,
     )
 end
 
@@ -532,13 +532,13 @@ function _rollout_ks_only(state0::F1Tenth.State, action::F1Tenth.Action,
     for _ in 1:steps
         sv = F1Tenth.steering_constraint(state[3], action[1], params)
         accl = F1Tenth.accl_constraints(state[4], action[2], params)
-        p = (params.μ, params.C_Sf, params.C_Sr, params.l_f, params.l_r,
-             params.h, params.m, params.I_z, sv, accl)
-        k1 = F1Tenth.KS_RHS(state, p)
-        k2 = F1Tenth.KS_RHS(state + dt * (k1 / 2), p)
-        k3 = F1Tenth.KS_RHS(state + dt * (k2 / 2), p)
-        k4 = F1Tenth.KS_RHS(state + dt * k3, p)
-        state = state + dt * (1 / 6) * (k1 + 2 * k2 + 2 * k3 + k4)
+        p = (params.μ, params.C_Sf, params.C_Sr, params.lᶠ, params.lʳ,
+             params.h, params.m, params.Iᶻ, sv, accl)
+        k₁ = F1Tenth.KS_RHS(state, p)
+        k₂ = F1Tenth.KS_RHS(state + dt * (k₁ / 2), p)
+        k₃ = F1Tenth.KS_RHS(state + dt * (k₂ / 2), p)
+        k₄ = F1Tenth.KS_RHS(state + dt * k₃, p)
+        state = state + dt * (1 / 6) * (k₁ + 2 * k₂ + 2 * k₃ + k₄)
     end
     return state
 end
@@ -677,17 +677,17 @@ const Action = SVector{2,Float64}
 @inline function dynamics_rhs(state::State, action::Action, params::VehicleParams)
     sv = steering_constraint(state[3], action[1], params)
     accl = accl_constraints(state[4], action[2], params)
-    p = (params.μ, params.C_Sf, params.C_Sr, params.l_f, params.l_r,
-         params.h, params.m, params.I_z, sv, accl)
+    p = (params.μ, params.C_Sf, params.C_Sr, params.lᶠ, params.lʳ,
+         params.h, params.m, params.Iᶻ, sv, accl)
     return abs(state[4]) < 0.5 ? KS_RHS(state, p) : ST_RHS(state, p)
 end
 
 function step_dynamics(state::State, action::Action, params::VehicleParams, dt::Float64)
-    k1 = dynamics_rhs(state, action, params)
-    k2 = dynamics_rhs(state + dt * (k1 / 2), action, params)
-    k3 = dynamics_rhs(state + dt * (k2 / 2), action, params)
-    k4 = dynamics_rhs(state + dt * k3, action, params)
-    new_state = state + dt * (1 / 6) * (k1 + 2 * k2 + 2 * k3 + k4)
+    k₁ = dynamics_rhs(state, action, params)
+    k₂ = dynamics_rhs(state + dt * (k₁ / 2), action, params)
+    k₃ = dynamics_rhs(state + dt * (k₂ / 2), action, params)
+    k₄ = dynamics_rhs(state + dt * k₃, action, params)
+    new_state = state + dt * (1 / 6) * (k₁ + 2 * k₂ + 2 * k₃ + k₄)
 
     yaw = new_state[5]
     if yaw > 2 * pi
@@ -782,19 +782,19 @@ using Test
         μ=1.0489,
         C_Sf=21.92 / 1.0489,
         C_Sr=21.92 / 1.0489,
-        l_f=0.3048 * 3.793293,
-        l_r=0.3048 * 4.667707,
+        lᶠ=0.3048 * 3.793293,
+        lʳ=0.3048 * 4.667707,
         h=0.3048 * 2.01355,
         m=4.4482216152605 / 0.3048 * 74.91452,
-        I_z=4.4482216152605 * 0.3048 * 1321.416,
-        δ_min=-1.066,
-        δ_max=1.066,
-        δ̇_min=-0.4,
-        δ̇_max=0.4,
-        v_min=-13.6,
-        v_max=50.8,
+        Iᶻ=4.4482216152605 * 0.3048 * 1321.416,
+        δ⁻=-1.066,
+        δ⁺=1.066,
+        δ̇⁻=-0.4,
+        δ̇⁺=0.4,
+        v⁻=-13.6,
+        v⁺=50.8,
         v_switch=7.319,
-        a_max=11.5,
+        a⁺=11.5,
     )
     u = F1Tenth.Action(0.15, 0.63 * 9.81)
     state0 = F1Tenth.State(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
