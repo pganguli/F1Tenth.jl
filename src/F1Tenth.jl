@@ -8,6 +8,7 @@ include("geometry/track.jl")
 include("geometry/bvh.jl")
 include("geometry/raycast.jl")
 include("geometry/collision.jl")
+include("geometry/step2.jl")
 
 export VehicleParams, State, Action, step_dynamics, simulate, KS_MODE, ST_MODE
 

@@ -10,4 +10,5 @@ using Test
     include("geometry/bvh_test.jl")
     include("geometry/raycast_test.jl")
     include("geometry/collision_test.jl")
+    include("geometry/step2_test.jl")
 end
