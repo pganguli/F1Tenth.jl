@@ -1,4 +1,5 @@
 using F1Tenth
+using ModelingToolkit: unknowns
 using StaticArrays
 using Test
 
@@ -61,4 +62,20 @@ end
     F1Tenth.ST_RHS(state, p) # warmup
     @test (@allocated F1Tenth.KS_RHS(state, p)) == 0
     @test (@allocated F1Tenth.ST_RHS(state, p)) == 0
+end
+
+@testset "KS_MODE / ST_MODE share one 7-dimensional state space" begin
+    # Load-bearing invariant for the Phase 5 HybridSystem assembly: both
+    # modes must be defined over the same 7-unknown state space (x, y, δ,
+    # v, ψ, ψ̇, β) so no reset map is needed at the KS<->ST transition. This
+    # is checked on the raw (uncompiled) KS_MODE/ST_MODE systems -- see the
+    # comment at their definition in src/dynamics/mtk_models.jl for why they
+    # must stay uncompiled (running `mtkcompile`/`structural_simplify` on
+    # KS_MODE alone would eliminate ψ̇/β and collapse it to 5 unknowns).
+    ks_unknowns = Set(Symbol.(unknowns(F1Tenth.KS_MODE)))
+    st_unknowns = Set(Symbol.(unknowns(F1Tenth.ST_MODE)))
+
+    @test length(unknowns(F1Tenth.KS_MODE)) == 7
+    @test length(unknowns(F1Tenth.ST_MODE)) == 7
+    @test ks_unknowns == st_unknowns
 end

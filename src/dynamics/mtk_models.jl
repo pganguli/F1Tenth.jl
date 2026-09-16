@@ -59,6 +59,21 @@ const _st_eqs = [
 
 const KS_MODE = System(_ks_eqs, t; name=:ks_mode)
 const ST_MODE = System(_st_eqs, t; name=:st_mode)
+# KS_MODE and ST_MODE are deliberately left uncompiled (no `mtkcompile`/
+# `structural_simplify` applied) so that Phase 5 can assemble a
+# HybridSystems.jl `HybridSystem` from them directly, with both modes
+# sharing one 7-dimensional state space (x, y, δ, v, ψ, ψ̇, β) and no reset
+# map needed at the KS<->ST transition.
+#
+# Do NOT run `mtkcompile`/`structural_simplify` on KS_MODE (or ST_MODE)
+# before that assembly: KS_MODE's `D(ψ̇) ~ 0.0` and `D(β) ~ 0.0` equations
+# are trivial, so MTK's structural simplification silently eliminates
+# `ψ̇` and `β` as unknowns, collapsing KS_MODE from 7 unknowns to 5 --
+# while ST_MODE (whose ψ̇/β equations are nontrivial) stays at 7. Compiling
+# both modes naively before building the HybridSystem would silently break
+# the shared-state-space premise this design relies on. Phase 5's
+# HybridSystem assembly must build from these raw (uncompiled) systems
+# directly, unless it separately re-pins ψ̇/β as retained unknowns first.
 
 const _state_syms = [x, y, δ, v, ψ, ψ̇, β]
 const _param_syms = [μ, Cᵦᶠ, Cᵦʳ, lᶠ, lʳ, h, m, Iᶻ, δ̇, a]
@@ -112,7 +127,7 @@ end
 # `p` is `(μ, Cᵦᶠ, Cᵦʳ, lᶠ, lʳ, h, m, Iᶻ, δ̇, a)` -- i.e. the 8 physics
 # parameters followed by the control input `(steering_velocity,
 # acceleration)`. The control input must already be clamped by the caller
-# (e.g. via `steering_constraint`/`accl_constraints`) -- this function does
+# (e.g. via `steering_constraint`/`accl_constraint`) -- this function does
 # not re-apply vehicle-specific control-input bounds, since those bounds
 # are not part of `p`.
 #
