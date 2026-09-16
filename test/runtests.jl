@@ -11,4 +11,5 @@ using Test
     include("geometry/raycast_test.jl")
     include("geometry/collision_test.jl")
     include("geometry/step2_test.jl")
+    include("geometry/lazysets_export_test.jl")
 end

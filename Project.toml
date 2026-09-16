@@ -6,6 +6,7 @@ authors = ["Prateek Ganguli <prateek.ganguli@gmail.com> and contributors"]
 [deps]
 DelimitedFiles = "8bb1440f-4735-579b-a4ab-409b98df4dab"
 DifferentialEquations = "0c46a032-eb83-5123-abaf-570d42b7fbaa"
+LazySets = "b4f0291d-fe17-52bc-9479-3d1a343d9043"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 ModelingToolkit = "961ee093-0014-501f-94e3-6117800e7a78"
 NearestNeighbors = "b8a86587-4115-5ab1-83bc-aa920d37bbce"
@@ -16,6 +17,7 @@ Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
 [compat]
 DelimitedFiles = "1.9.1"
 DifferentialEquations = "8.1.1"
+LazySets = "7.1.0"
 LinearAlgebra = "1.13.0"
 ModelingToolkit = "11.43.1"
 NearestNeighbors = "0.4.29"
