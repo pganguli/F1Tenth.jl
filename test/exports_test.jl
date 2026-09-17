@@ -10,6 +10,8 @@ using Test
         :collides, :check_car_collisions, :check_track_collision,
         :step_multi_agent!,
         :to_lazysets,
+        :AbstractRenderer, :NullRenderer, :GLMakieRenderer, :CairoMakieRenderer,
+        :init!, :render!, :close!, :reset!,
     ]
     for name in exported_names
         @test isdefined(F1Tenth, name)

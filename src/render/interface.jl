@@ -5,9 +5,8 @@ function render! end
 function close! end
 function reset! end
 
-# Implemented by ext/F1TenthGLMakieExt.jl and ext/F1TenthCairoMakieExt.jl
-# respectively -- these have no methods until the caller also loads
-# GLMakie/CairoMakie. See Project.toml's [weakdeps]/[extensions].
+# Implemented by src/render/glmakie.jl and src/render/cairomakie.jl
+# respectively (Tasks 2/3) -- these have no methods until then.
 function GLMakieRenderer end
 function CairoMakieRenderer end
 

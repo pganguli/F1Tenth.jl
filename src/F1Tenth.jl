@@ -21,6 +21,8 @@ export LiDARConfig, CarFootprint, car_vertices, cast_ray, scan
 export collides, check_car_collisions, check_track_collision
 export step_multi_agent!
 export to_lazysets
+export AbstractRenderer, NullRenderer, GLMakieRenderer, CairoMakieRenderer
+export init!, render!, close!, reset!
 
 function __init__()
     __mtk_models_init__()
