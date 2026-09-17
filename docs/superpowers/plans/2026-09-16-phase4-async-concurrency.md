@@ -368,7 +368,7 @@ if Threads.nthreads() >= 2
         sleep(0.3)
         F1Tenth.stop!(sim)
 
-        @test sim.states[1] != setup.states[1] || true  # reaching here without throwing is the main assertion
+        @test F1Tenth.take_latest!(sim.output) !== missing
     end
 else
     @warn "Skipping AsyncSim lifecycle tests: needs Threads.nthreads() >= 2; got $(Threads.nthreads())"
