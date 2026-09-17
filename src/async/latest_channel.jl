@@ -8,19 +8,27 @@
 # each agent's input channel).
 struct LatestChannel{T}
     ch::Channel{T}
-    lock::ReentrantLock
 end
 
-LatestChannel{T}() where {T} = LatestChannel{T}(Channel{T}(1), ReentrantLock())
+LatestChannel{T}() where {T} = LatestChannel{T}(Channel{T}(1))
 
-# put_latest! and take_latest! share `lock` because each is a
-# check-then-act (isready, then take!/put!) that is not atomic on its
-# own -- without the lock, a concurrent put_latest!/take_latest! pair
-# can race such that one side's isready check is stale by the time it
-# acts, and that side's take!/put! call blocks. See the amendment note
-# above this block.
+# put_latest! and take_latest! each perform a check-then-act (isready,
+# then take!/put!) that is not atomic on its own: without mutual
+# exclusion, a concurrent pair can race such that one side's isready
+# check is stale by the time it acts, and that side's take!/put! call
+# blocks forever.
+#
+# The exclusion uses the Channel's *own* built-in ReentrantLock
+# (`lock(lc.ch)`), not a separate lock, because take!/put!/isready all
+# acquire that same lock internally. That matters for wait_latest!,
+# which calls a bare `take!(lc.ch)` from another task: with a separate
+# lock, wait_latest!'s take! could steal the pending value in the
+# window between put_latest!'s isready check and its own take!, leaving
+# put_latest! blocked forever on a now-empty channel while holding that
+# separate lock. Holding the channel's own lock makes the compound
+# operation exclude wait_latest! too.
 function put_latest!(lc::LatestChannel{T}, v::T) where {T}
-    lock(lc.lock) do
+    lock(lc.ch) do
         isready(lc.ch) && take!(lc.ch)
         put!(lc.ch, v)
     end
@@ -28,17 +36,14 @@ function put_latest!(lc::LatestChannel{T}, v::T) where {T}
 end
 
 function take_latest!(lc::LatestChannel{T}) where {T}
-    return lock(lc.lock) do
+    return lock(lc.ch) do
         isready(lc.ch) ? take!(lc.ch) : missing
     end
 end
 
-# wait_latest! deliberately does not take `lock` -- it must be able to
-# block waiting for a value without holding a lock that put_latest!
-# needs in order to complete. This is safe without the lock: a put! on
-# an empty Channel with a pending take! waiter is a direct,
-# non-blocking handoff. This does require that wait_latest! and
-# take_latest! are never both called against the same LatestChannel
-# instance -- true of every use in this package (see the amendment
-# note above this block).
+# wait_latest! needs no explicit lock wrapper: take! acquires the
+# channel's lock internally on its own, which is the same lock
+# put_latest!/take_latest! hold for their compound operation, so it is
+# correctly excluded while one of those is mid-flight and blocks until
+# it completes.
 wait_latest!(lc::LatestChannel{T}) where {T} = take!(lc.ch)

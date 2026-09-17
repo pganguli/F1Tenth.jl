@@ -69,10 +69,18 @@ if Threads.nthreads() >= 2
             setup.states, setup.actions; tick_hz=20.0)
 
         F1Tenth.start!(sim)
-        sleep(0.3)
+        # Capture a frame *before* stop!: reading output afterwards can
+        # lose the last frame if stop!'s channel close lands inside
+        # put_latest!'s drain-then-put window.
+        local frame = missing
+        for _ in 1:200
+            frame = F1Tenth.take_latest!(sim.output)
+            frame === missing || break
+            sleep(0.01)
+        end
         F1Tenth.stop!(sim)
 
-        @test F1Tenth.take_latest!(sim.output) !== missing
+        @test frame !== missing
     end
 else
     @warn "Skipping AsyncSim lifecycle tests: needs Threads.nthreads() >= 2; got $(Threads.nthreads())"
@@ -87,7 +95,7 @@ end
     @test_throws ErrorException F1Tenth.start!(sim)
 end
 
-if Threads.nthreads() >= 2
+if Threads.nthreads() >= 3
     @testset "AsyncSim: DropLatest renderer receives frames without blocking physics" begin
         setup = _async_test_setup()
         fake = FakeRenderer()
@@ -165,10 +173,10 @@ if Threads.nthreads() >= 2
         @test fresh_states[1][1] > moving_states[1][1]  # x advanced, i.e. physics genuinely resumed
     end
 else
-    @warn "Skipping AsyncSim renderer-tier tests: needs Threads.nthreads() >= 2; got $(Threads.nthreads())"
+    @warn "Skipping AsyncSim renderer-tier tests: needs Threads.nthreads() >= 3; got $(Threads.nthreads())"
 end
 
-if Threads.nthreads() >= 2
+if Threads.nthreads() >= 3
     @testset "AsyncSim: a physics-tier exception propagates through stop! and halts renderers too" begin
         setup = _async_test_setup()
         fake = FakeRenderer()
@@ -201,5 +209,5 @@ if Threads.nthreads() >= 2
         @test isempty(sim.renderer_tasks)
     end
 else
-    @warn "Skipping AsyncSim fault-injection tests: needs Threads.nthreads() >= 2; got $(Threads.nthreads())"
+    @warn "Skipping AsyncSim fault-injection tests: needs Threads.nthreads() >= 3; got $(Threads.nthreads())"
 end

@@ -22,6 +22,25 @@ _render_channel(policy::Blocking) = Channel{RenderFrame}(policy.buffer)
 RendererEntry(renderer::AbstractRenderer, policy::RenderBackpressure) =
     RendererEntry(renderer, policy, _render_channel(policy))
 
+# AsyncSim usage contract:
+#
+# - `start!`, `stop!` and `reset!` must all be called from a single
+#   owning thread/task. They are not safe to call concurrently from
+#   multiple threads; the owning task is responsible for sequencing
+#   the sim's lifecycle.
+# - `start!` invalidates every previously-obtained reference to
+#   `sim.input`'s channels (and to `sim.output` / the renderer
+#   channels): closed channels cannot be reopened, so `start!` rebuilds
+#   them. A caller pushing custom actions -- including after a
+#   `reset!` -- must therefore push them at any point *after* `start!`
+#   returns, never before; actions written to a stale channel are
+#   discarded along with it.
+# - `stop!` rethrows whatever exception, if any, a tier recorded via
+#   `sim.error[]`, so a caller that wants the failure must handle it
+#   there.
+# - An external `put_latest!`/`take_latest!` against `sim.input` or
+#   `sim.output` can raise `InvalidStateException` once a tier has
+#   failed (fail-fast closes every channel) or after `stop!` has run.
 mutable struct AsyncSim
     bvh::TrackBVH
     params::VehicleParams
@@ -137,7 +156,14 @@ function _renderer_loop(sim::AsyncSim, entry::RendererEntry)
 end
 
 function start!(sim::AsyncSim)
-    sim.running[] && error("AsyncSim: already running")
+    # Guard on task quiescence rather than sim.running[]: a failing
+    # tier sets running[] = false from its catch block *before* it (or
+    # any other tier) has actually returned, so running[] == false does
+    # not imply the previous cycle's tasks are gone. stop! is the only
+    # code that nulls physics_task/empties renderer_tasks, so this is a
+    # strictly stronger check.
+    (sim.physics_task === nothing && isempty(sim.renderer_tasks)) ||
+        error("AsyncSim: call stop! first")
     required = _required_threads(sim)
     nthreads() >= required || error(
         "AsyncSim: needs Threads.nthreads() >= $required (1 physics thread + " *
@@ -146,12 +172,15 @@ function start!(sim::AsyncSim)
     sim.error[] = nothing
     # A prior stop! permanently closed every channel (Julia Channels
     # cannot reopen) -- rebuild them here so start! works both the
-    # first time and after a stop!/reset!/start! cycle. Harmless to do
-    # unconditionally on the very first call too: nothing is expected
-    # to have queued input before a sim has ever started.
-    sim.input = [LatestChannel{Action}() for _ in 1:length(sim.states)]
-    sim.output = LatestChannel{RenderFrame}()
-    sim.renderers = [RendererEntry(entry.renderer, entry.policy) for entry in sim.renderers]
+    # first time and after a stop!/reset!/start! cycle. Rebuild only
+    # the channels that are actually closed: rebuilding unconditionally
+    # would silently discard actions a caller queued on a still-open
+    # input channel (e.g. before the very first start!).
+    sim.input = [isopen(lc.ch) ? lc : LatestChannel{Action}() for lc in sim.input]
+    sim.output = isopen(sim.output.ch) ? sim.output : LatestChannel{RenderFrame}()
+    sim.renderers = [isopen(entry.channel isa LatestChannel ? entry.channel.ch : entry.channel) ?
+                     entry : RendererEntry(entry.renderer, entry.policy)
+                     for entry in sim.renderers]
     sim.running[] = true
     empty!(sim.renderer_tasks)
     for entry in sim.renderers
@@ -183,7 +212,11 @@ function stop!(sim::AsyncSim)
 end
 
 function reset!(sim::AsyncSim, track::Track, initial_states::Vector{State})
-    sim.running[] && error("AsyncSim: reset! requires the sim to be stopped first (call stop! first)")
+    # Same task-quiescence guard as start! (see the note there):
+    # running[] == false does not mean the previous cycle's tasks have
+    # finished unwinding.
+    (sim.physics_task === nothing && isempty(sim.renderer_tasks)) ||
+        error("AsyncSim: call stop! first")
     n = length(sim.last_actions)
     length(initial_states) == n || throw(ArgumentError(
         "reset! requires the same number of agents ($n); got $(length(initial_states))"))
