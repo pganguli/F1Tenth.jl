@@ -24,3 +24,29 @@ end
     F1Tenth.put_latest!(lc, 7)
     @test fetch(t) == 7
 end
+
+@testset "LatestChannel: concurrent put_latest!/take_latest! never blocks (race regression)" begin
+    lc = F1Tenth.LatestChannel{Int}()
+    n = 5000
+    producer_done = Threads.Atomic{Bool}(false)
+    producer = Threads.@spawn begin
+        for i in 1:n
+            F1Tenth.put_latest!(lc, i)
+        end
+        producer_done[] = true
+    end
+    # Consumer races put_latest! with take_latest! on the same channel
+    # until the producer is done, then drains any final value. Success
+    # is both tasks completing within the timeout: if the pre-fix
+    # check-then-act race regresses, one side's take!/put! call blocks
+    # forever and this hangs until the bound trips.
+    consumer = Threads.@spawn begin
+        while !producer_done[]
+            F1Tenth.take_latest!(lc)
+            yield()
+        end
+        F1Tenth.take_latest!(lc)
+    end
+    ok = timedwait(() -> istaskdone(producer) && istaskdone(consumer), 5.0)
+    @test ok === :ok
+end
