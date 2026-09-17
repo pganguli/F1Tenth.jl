@@ -11,20 +11,40 @@ three implementations (`NullRenderer`, `GLMakieRenderer`,
 `src/geometry/`.
 
 **Architecture:** `AbstractRenderer` and `NullRenderer` live directly
-in the main module (zero extra runtime dependency). `GLMakieRenderer`/
-`CairoMakieRenderer` are empty constructor stubs in the main module,
-implemented as Julia package extensions (`ext/F1TenthGLMakieExt.jl`,
-`ext/F1TenthCairoMakieExt.jl`) that only load when the caller also has
-`GLMakie`/`CairoMakie` loaded (`[weakdeps]` in `Project.toml`), so a
-headless/training user never pays either backend's install/precompile
-cost. `GLMakieRenderer` builds its `Figure`/`Axis` once and updates
-Makie `Observable`s incrementally per tick (live view). `CairoMakieRenderer`
-buffers each tick's data cheaply in `render!` and does all drawing in
-`close!`, emitting a single summary SVG (full trails) and, if
-configured, one SVG per tick for a vector "flip-book" replay.
+in the main module. `GLMakieRenderer`/`CairoMakieRenderer` are empty
+constructor stubs in `src/render/interface.jl` (Task 1, unchanged);
+their real methods and private `<: AbstractRenderer` structs live in
+ordinary `include`d files, `src/render/glmakie.jl` and
+`src/render/cairomakie.jl` — **not** Julia package extensions (see
+amendment note below). `GLMakieRenderer` builds its `Figure`/`Axis`
+once and updates Makie `Observable`s incrementally per tick (live
+view). `CairoMakieRenderer` buffers each tick's data cheaply in
+`render!` and does all drawing in `close!`, emitting a single summary
+SVG (full trails) and, if configured, one SVG per tick for a vector
+"flip-book" replay.
+
+> **Amendment (mid-execution, after Task 1):** The original plan made
+> `GLMakieRenderer`/`CairoMakieRenderer` Julia package extensions
+> (`[weakdeps]`) so headless/training users wouldn't pay their
+> install/precompile cost. Task 2's implementer hit a hard blocker:
+> Phase 1's `src/dynamics/mtk_models.jl` `__init__()` deliberately
+> `@eval`s new `const` bindings (`KS_RHS`/`ST_RHS`) into the `F1Tenth`
+> module on every load, to keep `step_dynamics` zero-allocation (see
+> the comment at `mtk_models.jl:106-115`). Julia disallows exactly this
+> kind of eval-into-an-already-loaded-module while precompiling *any*
+> downstream package that depends on it — extension or not — so no
+> package extension of `F1Tenth` can ever precompile as things stand.
+> Fixing that is a Phase 1 architectural change, explicitly out of
+> scope here (touches `src/dynamics/`, reopens merged/reviewed work).
+> The user decided: drop the package-extension mechanism, make
+> `GLMakie`/`CairoMakie` regular `[deps]` instead, accepting that every
+> `F1Tenth` user now installs both backends. Tasks 2 and 3 below reflect
+> this from the start; Task 1's work (already reviewed and merged into
+> this branch before the blocker surfaced) is unaffected. See spec's
+> amended Decision 3 for the full rationale.
 
 **Tech Stack:** Julia 1.13 (repo compat floor 1.10.10), GLMakie.jl
-(new, weakdep), CairoMakie.jl (new, weakdep), StaticArrays.jl
+(new, regular dep), CairoMakie.jl (new, regular dep), StaticArrays.jl
 (existing), Test (stdlib).
 
 **Spec:** `docs/superpowers/specs/2026-09-16-phase3-renderer-engine-design.md`
@@ -32,7 +52,7 @@ configured, one SVG per tick for a vector "flip-book" replay.
 ## Global Constraints
 
 - No file under `src/dynamics/` or `src/geometry/` may be modified.
-  All Phase 3 code lives under `src/render/` and `ext/`.
+  All Phase 3 code lives under `src/render/`.
 - `render!`'s positional argument shape is fixed:
   `render!(renderer, states::Vector{State}, scans::Vector{Vector{Float64}},
   collisions::Vector{Bool})` — exactly `step_multi_agent!`'s return
@@ -46,8 +66,10 @@ configured, one SVG per tick for a vector "flip-book" replay.
   `LiDARConfig` is required to reconstruct beam angles for drawing scan
   rays, since `render!`'s `scans` argument carries only numeric ranges
   (spec's Decision-3 amendment).
-- `GLMakie`/`CairoMakie` must be `[weakdeps]` + `[extensions]` entries
-  in `Project.toml`, never plain `[deps]` (spec Decision 3).
+- `GLMakie`/`CairoMakie` are regular `[deps]` + `[compat]` entries in
+  `Project.toml`, like every other dependency — no `[weakdeps]`/
+  `[extensions]`/`ext/` files (spec Decision 3, amended mid-execution;
+  see amendment note above).
 - `GLMakieRenderer` updates must be Observable-based incremental
   updates, not full clear-and-redraw per tick (spec Decision 4).
 - `CairoMakieRenderer` output is vector (SVG) only — no video/GIF
@@ -181,9 +203,8 @@ function render! end
 function close! end
 function reset! end
 
-# Implemented by ext/F1TenthGLMakieExt.jl and ext/F1TenthCairoMakieExt.jl
-# respectively -- these have no methods until the caller also loads
-# GLMakie/CairoMakie. See Project.toml's [weakdeps]/[extensions].
+# Implemented by src/render/glmakie.jl and src/render/cairomakie.jl
+# respectively (Tasks 2/3) -- these have no methods until then.
 function GLMakieRenderer end
 function CairoMakieRenderer end
 
@@ -246,21 +267,35 @@ git commit -m "Add AbstractRenderer interface and NullRenderer"
 
 ---
 
-### Task 2: `GLMakieRenderer` package extension
+### Task 2: `GLMakieRenderer` implementation (regular dependency, not an extension)
+
+> **Note:** this task originally made `GLMakieRenderer` a Julia package
+> extension (`ext/F1TenthGLMakieExt.jl`, `GLMakie` as a `[weakdeps]`
+> entry). That approach is not viable in this codebase — see the plan's
+> header amendment note and the spec's amended Decision 3: Phase 1's
+> `mtk_models.jl` `__init__()` `@eval`s into the `F1Tenth` module on
+> every load, which Julia disallows while precompiling any downstream
+> package, extension or not. This task now adds `GLMakie` as a regular
+> `[deps]` entry and puts the implementation in an ordinary `include`d
+> file, `src/render/glmakie.jl` — no `ext/` directory, no `module
+> F1TenthGLMakieExt`, no `import F1Tenth`/`F1Tenth.` qualification since
+> the code lives directly inside the `F1Tenth` module, exactly like
+> every Phase 1/2 file.
 
 **Files:**
-- Modify: `Project.toml` (add `GLMakie` under `[weakdeps]`/`[extensions]`/`[compat]`/`[extras]`/`[targets]`)
-- Create: `ext/F1TenthGLMakieExt.jl`
+- Modify: `Project.toml` (add `GLMakie` under `[deps]`/`[compat]`)
+- Create: `src/render/glmakie.jl`
+- Modify: `src/F1Tenth.jl` (include the new file)
 - Test: `test/render/glmakie_test.jl`
 - Modify: `test/runtests.jl` (include the new test file)
 
 **Interfaces:**
-- Consumes: `F1Tenth.AbstractRenderer`, `F1Tenth.init!`,
-  `F1Tenth.render!`, `F1Tenth.close!`, `F1Tenth.reset!`,
-  `F1Tenth.GLMakieRenderer` stub (Task 1); `F1Tenth.Track`,
-  `F1Tenth.CarFootprint`, `F1Tenth.car_vertices` (Phase 2);
-  `F1Tenth.State`, `F1Tenth.LiDARConfig` (Phase 1/2).
-- Produces: a method for `F1Tenth.GLMakieRenderer(track::Track;
+- Consumes: `AbstractRenderer`, `init!`, `render!`, `close!`, `reset!`,
+  `GLMakieRenderer` stub (Task 1); `Track`, `CarFootprint`,
+  `car_vertices` (Phase 2); `State`, `LiDARConfig` (Phase 1/2) — all
+  unqualified, since `glmakie.jl` is `include`d into the `F1Tenth`
+  module.
+- Produces: a method for `GLMakieRenderer(track::Track;
   camera_mode::Symbol=:fixed, ego_index::Int=1,
   car::CarFootprint=CarFootprint(), cfg::LiDARConfig=LiDARConfig())`
   returning a private `GLMakieRendererImpl <: AbstractRenderer`
@@ -281,6 +316,7 @@ authors = ["Prateek Ganguli <prateek.ganguli@gmail.com> and contributors"]
 [deps]
 DelimitedFiles = "8bb1440f-4735-579b-a4ab-409b98df4dab"
 DifferentialEquations = "0c46a032-eb83-5123-abaf-570d42b7fbaa"
+GLMakie = "e9467ef8-e4e7-5192-8a1a-b1aee30e663a"
 LazySets = "b4f0291d-fe17-52bc-9479-3d1a343d9043"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 ModelingToolkit = "961ee093-0014-501f-94e3-6117800e7a78"
@@ -288,12 +324,6 @@ NearestNeighbors = "b8a86587-4115-5ab1-83bc-aa920d37bbce"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
-
-[weakdeps]
-GLMakie = "e9467ef8-e4e7-5192-8a1a-b1aee30e663a"
-
-[extensions]
-F1TenthGLMakieExt = "GLMakie"
 
 [compat]
 DelimitedFiles = "1.9.1"
@@ -307,11 +337,10 @@ Symbolics = "7.39.2"
 julia = "1.10.10"
 
 [extras]
-GLMakie = "e9467ef8-e4e7-5192-8a1a-b1aee30e663a"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["GLMakie", "Test"]
+test = ["Test"]
 ```
 
 Run:
@@ -397,21 +426,18 @@ Run: `cd /home/pganguli/Downloads/f1tenth/F1Tenth.jl && julia --project=. -e 'im
 Expected: FAIL — `F1Tenth.GLMakieRenderer(track; ...)` has no method
 (the stub from Task 1 has zero methods).
 
-- [ ] **Step 4: Implement `F1TenthGLMakieExt.jl`**
+- [ ] **Step 4: Implement `glmakie.jl`**
 
-Create `ext/F1TenthGLMakieExt.jl`:
+Create `src/render/glmakie.jl`:
 
 ```julia
-module F1TenthGLMakieExt
-
-import F1Tenth
 using GLMakie
 
-mutable struct GLMakieRendererImpl <: F1Tenth.AbstractRenderer
+mutable struct GLMakieRendererImpl <: AbstractRenderer
     camera_mode::Symbol
     ego_index::Int
-    car::F1Tenth.CarFootprint
-    cfg::F1Tenth.LiDARConfig
+    car::CarFootprint
+    cfg::LiDARConfig
     fig::Union{Nothing,Figure}
     ax::Union{Nothing,Axis}
     half_extent::Float64
@@ -423,31 +449,31 @@ mutable struct GLMakieRendererImpl <: F1Tenth.AbstractRenderer
     initialized::Bool
 end
 
-function F1Tenth.GLMakieRenderer(track::F1Tenth.Track; camera_mode::Symbol=:fixed,
-    ego_index::Int=1, car::F1Tenth.CarFootprint=F1Tenth.CarFootprint(),
-    cfg::F1Tenth.LiDARConfig=F1Tenth.LiDARConfig())
+function GLMakieRenderer(track::Track; camera_mode::Symbol=:fixed,
+    ego_index::Int=1, car::CarFootprint=CarFootprint(),
+    cfg::LiDARConfig=LiDARConfig())
     renderer = GLMakieRendererImpl(camera_mode, ego_index, car, cfg, nothing, nothing, 0.0,
         Observable{Vector{Point2f}}[], Observable{Vector{Point2f}}[], Vector{Point2f}[],
         Observable{Vector{Point2f}}[], Observable{Symbol}[], false)
-    F1Tenth.init!(renderer, track)
+    init!(renderer, track)
     return renderer
 end
 
-function _plot_track!(ax, track::F1Tenth.Track)
+function _plot_glmakie_track!(ax, track::Track)
     outer_pts = [Point2f(p[1], p[2]) for p in vcat(track.outer, [track.outer[1]])]
     inner_pts = [Point2f(p[1], p[2]) for p in vcat(track.inner, [track.inner[1]])]
     lines!(ax, outer_pts; color=:black)
     lines!(ax, inner_pts; color=:black)
 end
 
-function _track_bounds(track::F1Tenth.Track)
+function _glmakie_track_bounds(track::Track)
     pts = vcat(track.outer, track.inner)
     xs = [p[1] for p in pts]
     ys = [p[2] for p in pts]
     return (minimum(xs), maximum(xs), minimum(ys), maximum(ys))
 end
 
-function F1Tenth.init!(renderer::GLMakieRendererImpl, track::F1Tenth.Track)
+function init!(renderer::GLMakieRendererImpl, track::Track)
     if renderer.fig === nothing
         renderer.fig = Figure()
         renderer.ax = Axis(renderer.fig[1, 1]; aspect=DataAspect())
@@ -455,8 +481,8 @@ function F1Tenth.init!(renderer::GLMakieRendererImpl, track::F1Tenth.Track)
     else
         empty!(renderer.ax)
     end
-    _plot_track!(renderer.ax, track)
-    xmin, xmax, ymin, ymax = _track_bounds(track)
+    _plot_glmakie_track!(renderer.ax, track)
+    xmin, xmax, ymin, ymax = _glmakie_track_bounds(track)
     renderer.half_extent = max(xmax - xmin, ymax - ymin) / 2
     if renderer.camera_mode == :fixed
         limits!(renderer.ax, xmin, xmax, ymin, ymax)
@@ -470,9 +496,9 @@ function F1Tenth.init!(renderer::GLMakieRendererImpl, track::F1Tenth.Track)
     return renderer
 end
 
-F1Tenth.reset!(renderer::GLMakieRendererImpl, track::F1Tenth.Track) = F1Tenth.init!(renderer, track)
+reset!(renderer::GLMakieRendererImpl, track::Track) = init!(renderer, track)
 
-function _ensure_car_plots!(renderer::GLMakieRendererImpl, n::Int)
+function _ensure_glmakie_car_plots!(renderer::GLMakieRendererImpl, n::Int)
     isempty(renderer.car_polys) || return
     for _ in 1:n
         car_obs = Observable(Point2f[])
@@ -490,7 +516,7 @@ function _ensure_car_plots!(renderer::GLMakieRendererImpl, n::Int)
     end
 end
 
-function _scan_ray_points(state::F1Tenth.State, beam_ranges::Vector{Float64}, cfg::F1Tenth.LiDARConfig)
+function _glmakie_scan_ray_points(state::State, beam_ranges::Vector{Float64}, cfg::LiDARConfig)
     x, y, _, _, ψ, _, _ = state
     angles = cfg.num_beams == 1 ? [ψ] : range(ψ - cfg.fov / 2, ψ + cfg.fov / 2; length=cfg.num_beams)
     points = Point2f[]
@@ -502,18 +528,18 @@ function _scan_ray_points(state::F1Tenth.State, beam_ranges::Vector{Float64}, cf
     return points
 end
 
-function F1Tenth.render!(renderer::GLMakieRendererImpl, states::Vector{F1Tenth.State},
+function render!(renderer::GLMakieRendererImpl, states::Vector{State},
     scans::Vector{Vector{Float64}}, collisions::Vector{Bool})
     renderer.initialized || error("GLMakieRenderer: render! called before init!/reset!")
     n = length(states)
-    _ensure_car_plots!(renderer, n)
+    _ensure_glmakie_car_plots!(renderer, n)
     for i in 1:n
-        verts = F1Tenth.car_vertices(states[i], renderer.car)
+        verts = car_vertices(states[i], renderer.car)
         renderer.car_polys[i][] = [Point2f(v[1], v[2]) for v in verts]
         push!(renderer.trail_points[i], Point2f(states[i][1], states[i][2]))
         renderer.trails[i][] = renderer.trail_points[i]
         renderer.car_colors[i][] = collisions[i] ? :red : :blue
-        renderer.scan_lines[i][] = _scan_ray_points(states[i], scans[i], renderer.cfg)
+        renderer.scan_lines[i][] = _glmakie_scan_ray_points(states[i], scans[i], renderer.cfg)
     end
     if renderer.camera_mode == :follow
         ex, ey = states[renderer.ego_index][1], states[renderer.ego_index][2]
@@ -523,13 +549,21 @@ function F1Tenth.render!(renderer::GLMakieRendererImpl, states::Vector{F1Tenth.S
     return nothing
 end
 
-function F1Tenth.close!(renderer::GLMakieRendererImpl)
+function close!(renderer::GLMakieRendererImpl)
     renderer.fig === nothing || GLMakie.closeall()
     return nothing
 end
-
-end # module
 ```
+
+Note the `_plot_glmakie_track!`/`_glmakie_track_bounds`/
+`_ensure_glmakie_car_plots!`/`_glmakie_scan_ray_points` helper names are
+prefixed to avoid colliding with Task 3's CairoMakie helpers of similar
+purpose, since both files are `include`d into the same `F1Tenth` module
+namespace (unlike the original extension-module design, where each
+extension had its own private namespace).
+
+Modify `src/F1Tenth.jl` to add `include("render/glmakie.jl")`
+immediately after `include("render/interface.jl")`.
 
 - [ ] **Step 5: Run tests to verify they pass**
 
@@ -543,27 +577,34 @@ expected per the spec, not a failure to chase.
 
 ```bash
 cd /home/pganguli/Downloads/f1tenth/F1Tenth.jl
-git add Project.toml Manifest.toml ext/F1TenthGLMakieExt.jl test/render/glmakie_test.jl test/runtests.jl
-git commit -m "Add GLMakieRenderer package extension"
+git add Project.toml Manifest.toml src/F1Tenth.jl src/render/glmakie.jl test/render/glmakie_test.jl test/runtests.jl
+git commit -m "Add GLMakieRenderer implementation"
 ```
 
 ---
 
-### Task 3: `CairoMakieRenderer` package extension
+### Task 3: `CairoMakieRenderer` implementation (regular dependency, not an extension)
+
+> **Note:** same amendment as Task 2 — see the plan's header note and
+> the spec's amended Decision 3. `CairoMakie` is a regular `[deps]`
+> entry; the implementation is an ordinary `include`d file,
+> `src/render/cairomakie.jl` — no `ext/` directory, no `module
+> F1TenthCairoMakieExt`, no `import F1Tenth`/`F1Tenth.` qualification.
 
 **Files:**
-- Modify: `Project.toml` (add `CairoMakie` under `[weakdeps]`/`[extensions]`/`[compat]`/`[extras]`/`[targets]`)
-- Create: `ext/F1TenthCairoMakieExt.jl`
+- Modify: `Project.toml` (add `CairoMakie` under `[deps]`/`[compat]`)
+- Create: `src/render/cairomakie.jl`
+- Modify: `src/F1Tenth.jl` (include the new file)
 - Test: `test/render/cairomakie_test.jl`
 - Modify: `test/runtests.jl` (include the new test file)
 
 **Interfaces:**
-- Consumes: `F1Tenth.AbstractRenderer`, `F1Tenth.init!`,
-  `F1Tenth.render!`, `F1Tenth.close!`, `F1Tenth.reset!`,
-  `F1Tenth.CairoMakieRenderer` stub (Task 1); `F1Tenth.Track`,
-  `F1Tenth.CarFootprint`, `F1Tenth.car_vertices` (Phase 2);
-  `F1Tenth.State`, `F1Tenth.LiDARConfig` (Phase 1/2).
-- Produces: a method for `F1Tenth.CairoMakieRenderer(track::Track;
+- Consumes: `AbstractRenderer`, `init!`, `render!`, `close!`, `reset!`,
+  `CairoMakieRenderer` stub (Task 1); `Track`, `CarFootprint`,
+  `car_vertices` (Phase 2); `State`, `LiDARConfig` (Phase 1/2) — all
+  unqualified, since `cairomakie.jl` is `include`d into the `F1Tenth`
+  module.
+- Produces: a method for `CairoMakieRenderer(track::Track;
   output_dir::Union{Nothing,String}=nothing,
   summary_path::String="summary.svg",
   car::CarFootprint=CarFootprint(), cfg::LiDARConfig=LiDARConfig())`
@@ -588,8 +629,10 @@ version = "1.0.0-DEV"
 authors = ["Prateek Ganguli <prateek.ganguli@gmail.com> and contributors"]
 
 [deps]
+CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
 DelimitedFiles = "8bb1440f-4735-579b-a4ab-409b98df4dab"
 DifferentialEquations = "0c46a032-eb83-5123-abaf-570d42b7fbaa"
+GLMakie = "e9467ef8-e4e7-5192-8a1a-b1aee30e663a"
 LazySets = "b4f0291d-fe17-52bc-9479-3d1a343d9043"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 ModelingToolkit = "961ee093-0014-501f-94e3-6117800e7a78"
@@ -597,14 +640,6 @@ NearestNeighbors = "b8a86587-4115-5ab1-83bc-aa920d37bbce"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 StaticArrays = "90137ffa-7385-5640-81b9-e52037218182"
 Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
-
-[weakdeps]
-CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
-GLMakie = "e9467ef8-e4e7-5192-8a1a-b1aee30e663a"
-
-[extensions]
-F1TenthCairoMakieExt = "CairoMakie"
-F1TenthGLMakieExt = "GLMakie"
 
 [compat]
 CairoMakie = "0.15.6"
@@ -619,12 +654,10 @@ Symbolics = "7.39.2"
 julia = "1.10.10"
 
 [extras]
-CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
-GLMakie = "e9467ef8-e4e7-5192-8a1a-b1aee30e663a"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["CairoMakie", "GLMakie", "Test"]
+test = ["Test"]
 ```
 
 Run:
@@ -702,38 +735,35 @@ Run: `cd /home/pganguli/Downloads/f1tenth/F1Tenth.jl && julia --project=. -e 'im
 Expected: FAIL — `F1Tenth.CairoMakieRenderer(track; ...)` has no
 method.
 
-- [ ] **Step 4: Implement `F1TenthCairoMakieExt.jl`**
+- [ ] **Step 4: Implement `cairomakie.jl`**
 
-Create `ext/F1TenthCairoMakieExt.jl`:
+Create `src/render/cairomakie.jl`:
 
 ```julia
-module F1TenthCairoMakieExt
-
-import F1Tenth
 using CairoMakie
 
-mutable struct CairoMakieRendererImpl <: F1Tenth.AbstractRenderer
+mutable struct CairoMakieRendererImpl <: AbstractRenderer
     output_dir::Union{Nothing,String}
     summary_path::String
-    car::F1Tenth.CarFootprint
-    cfg::F1Tenth.LiDARConfig
-    track::Union{Nothing,F1Tenth.Track}
-    history_states::Vector{Vector{F1Tenth.State}}
+    car::CarFootprint
+    cfg::LiDARConfig
+    track::Union{Nothing,Track}
+    history_states::Vector{Vector{State}}
     history_scans::Vector{Vector{Vector{Float64}}}
     history_collisions::Vector{Vector{Bool}}
     initialized::Bool
 end
 
-function F1Tenth.CairoMakieRenderer(track::F1Tenth.Track;
+function CairoMakieRenderer(track::Track;
     output_dir::Union{Nothing,String}=nothing, summary_path::String="summary.svg",
-    car::F1Tenth.CarFootprint=F1Tenth.CarFootprint(), cfg::F1Tenth.LiDARConfig=F1Tenth.LiDARConfig())
+    car::CarFootprint=CarFootprint(), cfg::LiDARConfig=LiDARConfig())
     renderer = CairoMakieRendererImpl(output_dir, summary_path, car, cfg, nothing,
-        Vector{F1Tenth.State}[], Vector{Vector{Float64}}[], Vector{Bool}[], false)
-    F1Tenth.init!(renderer, track)
+        Vector{State}[], Vector{Vector{Float64}}[], Vector{Bool}[], false)
+    init!(renderer, track)
     return renderer
 end
 
-function F1Tenth.init!(renderer::CairoMakieRendererImpl, track::F1Tenth.Track)
+function init!(renderer::CairoMakieRendererImpl, track::Track)
     renderer.track = track
     empty!(renderer.history_states)
     empty!(renderer.history_scans)
@@ -743,9 +773,9 @@ function F1Tenth.init!(renderer::CairoMakieRendererImpl, track::F1Tenth.Track)
     return renderer
 end
 
-F1Tenth.reset!(renderer::CairoMakieRendererImpl, track::F1Tenth.Track) = F1Tenth.init!(renderer, track)
+reset!(renderer::CairoMakieRendererImpl, track::Track) = init!(renderer, track)
 
-function F1Tenth.render!(renderer::CairoMakieRendererImpl, states::Vector{F1Tenth.State},
+function render!(renderer::CairoMakieRendererImpl, states::Vector{State},
     scans::Vector{Vector{Float64}}, collisions::Vector{Bool})
     renderer.initialized || error("CairoMakieRenderer: render! called before init!/reset!")
     push!(renderer.history_states, copy(states))
@@ -754,22 +784,22 @@ function F1Tenth.render!(renderer::CairoMakieRendererImpl, states::Vector{F1Tent
     return nothing
 end
 
-function _plot_track!(ax, track::F1Tenth.Track)
+function _plot_cairomakie_track!(ax, track::Track)
     outer_pts = [Point2f(p[1], p[2]) for p in vcat(track.outer, [track.outer[1]])]
     inner_pts = [Point2f(p[1], p[2]) for p in vcat(track.inner, [track.inner[1]])]
     lines!(ax, outer_pts; color=:black)
     lines!(ax, inner_pts; color=:black)
 end
 
-function _draw_frame(track::F1Tenth.Track, trails::Vector{Vector{Point2f}},
-    states::Vector{F1Tenth.State}, scans::Vector{Vector{Float64}}, collisions::Vector{Bool},
-    car::F1Tenth.CarFootprint, cfg::F1Tenth.LiDARConfig)
+function _draw_cairomakie_frame(track::Track, trails::Vector{Vector{Point2f}},
+    states::Vector{State}, scans::Vector{Vector{Float64}}, collisions::Vector{Bool},
+    car::CarFootprint, cfg::LiDARConfig)
     fig = Figure()
     ax = Axis(fig[1, 1]; aspect=DataAspect())
-    _plot_track!(ax, track)
+    _plot_cairomakie_track!(ax, track)
     for i in eachindex(states)
         isempty(trails[i]) || lines!(ax, trails[i]; color=:gray, linestyle=:dot)
-        verts = F1Tenth.car_vertices(states[i], car)
+        verts = car_vertices(states[i], car)
         poly!(ax, [Point2f(v[1], v[2]) for v in verts]; color=collisions[i] ? :red : :blue)
         x, y, _, _, ψ, _, _ = states[i]
         num_beams = length(scans[i])
@@ -782,7 +812,7 @@ function _draw_frame(track::F1Tenth.Track, trails::Vector{Vector{Point2f}},
     return fig
 end
 
-function F1Tenth.close!(renderer::CairoMakieRendererImpl)
+function close!(renderer::CairoMakieRendererImpl)
     track = renderer.track
     n_ticks = length(renderer.history_states)
     n_cars = n_ticks == 0 ? 0 : length(renderer.history_states[1])
@@ -790,14 +820,14 @@ function F1Tenth.close!(renderer::CairoMakieRendererImpl)
     if n_ticks == 0
         summary_fig = Figure()
         ax = Axis(summary_fig[1, 1]; aspect=DataAspect())
-        _plot_track!(ax, track)
+        _plot_cairomakie_track!(ax, track)
     else
         full_trails = [Point2f[] for _ in 1:n_cars]
         for tick in 1:n_ticks, i in 1:n_cars
             s = renderer.history_states[tick][i]
             push!(full_trails[i], Point2f(s[1], s[2]))
         end
-        summary_fig = _draw_frame(track, full_trails, renderer.history_states[end],
+        summary_fig = _draw_cairomakie_frame(track, full_trails, renderer.history_states[end],
             renderer.history_scans[end], renderer.history_collisions[end], renderer.car, renderer.cfg)
     end
     save(renderer.summary_path, summary_fig)
@@ -809,7 +839,7 @@ function F1Tenth.close!(renderer::CairoMakieRendererImpl)
                 s = renderer.history_states[tick][i]
                 push!(running_trails[i], Point2f(s[1], s[2]))
             end
-            frame_fig = _draw_frame(track, running_trails, renderer.history_states[tick],
+            frame_fig = _draw_cairomakie_frame(track, running_trails, renderer.history_states[tick],
                 renderer.history_scans[tick], renderer.history_collisions[tick], renderer.car, renderer.cfg)
             path = joinpath(renderer.output_dir, "frame_" * lpad(tick, 4, '0') * ".svg")
             save(path, frame_fig)
@@ -817,9 +847,10 @@ function F1Tenth.close!(renderer::CairoMakieRendererImpl)
     end
     return nothing
 end
-
-end # module
 ```
+
+Modify `src/F1Tenth.jl` to add `include("render/cairomakie.jl")`
+immediately after `include("render/glmakie.jl")`.
 
 - [ ] **Step 5: Run tests to verify they pass**
 
@@ -830,8 +861,8 @@ Expected: PASS
 
 ```bash
 cd /home/pganguli/Downloads/f1tenth/F1Tenth.jl
-git add Project.toml Manifest.toml ext/F1TenthCairoMakieExt.jl test/render/cairomakie_test.jl test/runtests.jl
-git commit -m "Add CairoMakieRenderer package extension"
+git add Project.toml Manifest.toml src/F1Tenth.jl src/render/cairomakie.jl test/render/cairomakie_test.jl test/runtests.jl
+git commit -m "Add CairoMakieRenderer implementation"
 ```
 
 ---
