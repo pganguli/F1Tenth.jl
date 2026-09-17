@@ -7,6 +7,7 @@ mutable struct GLMakieRendererImpl <: AbstractRenderer
     cfg::LiDARConfig
     fig::Union{Nothing,Figure}
     ax::Union{Nothing,Axis}
+    screen::Union{Nothing,Any}
     half_extent::Float64
     car_polys::Vector{Observable{Vector{Point2f}}}
     trails::Vector{Observable{Vector{Point2f}}}
@@ -19,7 +20,9 @@ end
 function GLMakieRenderer(track::Track; camera_mode::Symbol=:fixed,
     ego_index::Int=1, car::CarFootprint=CarFootprint(),
     cfg::LiDARConfig=LiDARConfig())
-    renderer = GLMakieRendererImpl(camera_mode, ego_index, car, cfg, nothing, nothing, 0.0,
+    camera_mode in (:fixed, :follow) ||
+        throw(ArgumentError("camera_mode must be :fixed or :follow, got $camera_mode"))
+    renderer = GLMakieRendererImpl(camera_mode, ego_index, car, cfg, nothing, nothing, nothing, 0.0,
         Observable{Vector{Point2f}}[], Observable{Vector{Point2f}}[], Vector{Point2f}[],
         Observable{Vector{Point2f}}[], Observable{Symbol}[], false)
     init!(renderer, track)
@@ -41,10 +44,11 @@ function _glmakie_track_bounds(track::Track)
 end
 
 function init!(renderer::GLMakieRendererImpl, track::Track)
+    GLMakie.activate!()
     if renderer.fig === nothing
         renderer.fig = Figure()
         renderer.ax = Axis(renderer.fig[1, 1]; aspect=DataAspect())
-        display(renderer.fig)
+        renderer.screen = display(renderer.fig)
     else
         empty!(renderer.ax)
     end
@@ -109,6 +113,8 @@ function render!(renderer::GLMakieRendererImpl, states::Vector{State},
         renderer.scan_lines[i][] = _glmakie_scan_ray_points(states[i], scans[i], renderer.cfg)
     end
     if renderer.camera_mode == :follow
+        1 <= renderer.ego_index <= length(states) ||
+            error("GLMakieRenderer: ego_index=$(renderer.ego_index) out of range for $(length(states)) agents")
         ex, ey = states[renderer.ego_index][1], states[renderer.ego_index][2]
         h = renderer.half_extent
         limits!(renderer.ax, ex - h, ex + h, ey - h, ey + h)
@@ -117,6 +123,9 @@ function render!(renderer::GLMakieRendererImpl, states::Vector{State},
 end
 
 function close!(renderer::GLMakieRendererImpl)
-    renderer.fig === nothing || GLMakie.closeall()
+    renderer.screen === nothing || close(renderer.screen)
+    renderer.fig = nothing
+    renderer.screen = nothing
+    renderer.initialized = false
     return nothing
 end

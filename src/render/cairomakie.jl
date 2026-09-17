@@ -37,7 +37,7 @@ function render!(renderer::CairoMakieRendererImpl, states::Vector{State},
     scans::Vector{Vector{Float64}}, collisions::Vector{Bool})
     renderer.initialized || error("CairoMakieRenderer: render! called before init!/reset!")
     push!(renderer.history_states, copy(states))
-    push!(renderer.history_scans, copy(scans))
+    push!(renderer.history_scans, [copy(s) for s in scans])
     push!(renderer.history_collisions, copy(collisions))
     return nothing
 end
