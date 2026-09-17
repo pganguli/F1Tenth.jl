@@ -15,6 +15,7 @@ include("render/glmakie.jl")
 include("render/cairomakie.jl")
 include("async/latest_channel.jl")
 include("async/sim.jl")
+include("reachability/hybrid_system.jl")
 
 export VehicleParams, State, Action, step_dynamics, simulate, KS_MODE, ST_MODE
 export Track, Segment, build_track, load_track
