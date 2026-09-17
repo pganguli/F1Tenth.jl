@@ -15,5 +15,7 @@ using Test
     include("render/null_test.jl")
     include("render/glmakie_test.jl")
     include("render/cairomakie_test.jl")
+    include("async/latest_channel_test.jl")
+    include("async/sim_test.jl")
     include("exports_test.jl")
 end

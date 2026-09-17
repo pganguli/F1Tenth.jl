@@ -12,6 +12,9 @@ using Test
         :to_lazysets,
         :AbstractRenderer, :NullRenderer, :GLMakieRenderer, :CairoMakieRenderer,
         :init!, :render!, :close!, :reset!,
+        :LatestChannel, :put_latest!, :take_latest!, :wait_latest!,
+        :AsyncSim, :start!, :stop!,
+        :RenderBackpressure, :DropLatest, :Blocking, :RendererEntry,
     ]
     for name in exported_names
         @test isdefined(F1Tenth, name)

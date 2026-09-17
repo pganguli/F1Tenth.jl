@@ -28,6 +28,78 @@ re-surfaced by `stop!` to the caller.
 dep). No new `Project.toml` dependencies — everything Phase 4 needs is
 either already a dependency or part of Base/stdlib.
 
+> **Amendment 4 (post-final-review, after all 4 tasks passed their own
+> reviews):** The final whole-branch review found one Critical and
+> several Important cross-task issues that no single task's diff could
+> reveal, since each depends on how a *later* task's code actually
+> uses an *earlier* task's primitive:
+>
+> - **Critical — `put_latest!` still races `wait_latest!`.** Task 1's
+>   fix closed the `put_latest!`/`take_latest!` race with a custom
+>   `lc.lock`, reasoned to be safe for `wait_latest!` on the grounds
+>   that a `put!` on an empty `Channel` with a pending `take!` waiter
+>   is a non-blocking handoff. That reasoning only covers
+>   `put_latest!`'s `put!` call, not its internal `take!` (the drain of
+>   a stale value): if `wait_latest!`'s bare `take!` claims the pending
+>   value in the window between `put_latest!`'s `isready` check and its
+>   own `take!`, `put_latest!`'s `take!` blocks forever on a now-empty
+>   channel — while holding `lc.lock`. Task 3 introduced exactly this
+>   pairing on every `DropLatest` renderer channel (physics tier's
+>   `put_latest!` vs. that renderer's `wait_latest!`), which didn't
+>   exist when Task 1 was reviewed. Reproduced empirically against the
+>   shipped code. Fix: drop the custom `lc.lock` field entirely and use
+>   `Channel`'s own built-in lock (`lock(lc.ch) do ... end`, a
+>   `ReentrantLock` Julia already associates with every `Channel`) for
+>   `put_latest!`'s and `take_latest!`'s compound check-then-act — a
+>   concurrent `wait_latest!`'s `take!` call acquires that same lock
+>   internally, so it's now properly excluded too.
+> - **Important — `start!`/`reset!` only guard on `running[]`, not on
+>   whether the previous tiers have actually finished unwinding.** A
+>   failing tier sets `running[] = false` before it (and any other
+>   tier) has returned from its `catch` block. `start!` (or `reset!`)
+>   called in that window passes the guard while an old task is still
+>   live, discarding a real recorded error and risking two physics
+>   tasks touching `sim.states` at once. Fix: guard on task quiescence
+>   (`sim.physics_task === nothing && isempty(sim.renderer_tasks)`)
+>   instead of `running[]` — `stop!` is the only thing that nulls those
+>   fields, so this is a strictly stronger check.
+> - **Important — actions pushed to `sim.input` before the first
+>   `start!` are silently discarded.** `start!` unconditionally rebuilds
+>   every channel, including ones nothing has closed yet. Fix: rebuild
+>   a channel only if it's actually closed (`isopen(...) ? existing :
+>   fresh`), for input, output, and every renderer entry.
+> - **Important — `AsyncSim`'s usage contract lives only in the plan
+>   and spec, not in the code.** Fix: add a comment block above
+>   `mutable struct AsyncSim` in `src/async/sim.jl` stating: `start!`/
+>   `stop!`/`reset!` must be called from a single owning thread/task;
+>   `start!` invalidates every previously-obtained channel reference,
+>   so a caller must push to `sim.input[i]` only *after* `start!`
+>   returns (matching the Task-3 amendment's corrected wording above);
+>   `stop!` rethrows whatever exception, if any, a tier recorded; and
+>   an external `put_latest!`/`take_latest!` call can raise
+>   `InvalidStateException` once a tier has failed or after `stop!`.
+> - **Important — two test skip guards check `Threads.nthreads() >= 2`
+>   but the testsets they gate all attach a renderer, so they actually
+>   need `>= 3`** (`_required_threads` includes the renderer). Fix:
+>   correct both guards to `>= 3`.
+> - **Flake fix, same underlying non-atomicity as the Critical above,
+>   benign guise:** Task 2's "tick_hz real-time mode runs without
+>   error" test reads `sim.output` *after* `stop!`, so if `stop!`
+>   closes channels inside `put_latest!`'s drain-then-put window, the
+>   last frame before shutdown can be lost and the read comes back
+>   `missing` — this reproduces the one flaky failure noted during
+>   Task 3/4. Fix: capture the frame *before* `stop!`, using the same
+>   poll-with-timeout loop the lifecycle test in Task 2 already uses.
+>
+> All six are implementation fixes within already-reviewed files; none
+> change the public behavior the spec describes. Minor findings from
+> the final review (a `tick_hz` catch-up-burst edge case, a confusing
+> thread-count error message, a narrow `stop!` catch-all, an untested
+> zero-agent/fail-on-first-call path, and a spec-wording note about
+> `reset!`'s zero-action default) are deliberately deferred as
+> follow-up work, not fixed here — see the final review's Deferred
+> Findings Triage in the SDD ledger for the reasoning on each.
+
 **Spec:** `docs/superpowers/specs/2026-09-16-phase4-async-concurrency-design.md`
 
 ## Global Constraints
@@ -65,11 +137,18 @@ either already a dependency or part of Base/stdlib.
   previous episode's last actions were. This plan resolves that by
   zeroing `last_actions` to `zero(Action)` on `reset!` — a caller
   wanting different reset actions pushes them onto the input channels
-  before the next `start!`, which picks them up on tick 1 instead of
-  the zero default. (Small gap-filling decision, same kind as Phase
-  3's `CairoMakieRenderer` `summary_path` — the spec fixed the
-  behavior's intent and signature but not this one implementation
-  detail.)
+  *after* the next `start!` returns (not before: `start!` rebuilds
+  every channel from scratch — see Task 3's restart-fix amendment — so
+  a channel reference obtained before that call is stale). This is the
+  same zero-order-hold, best-effort timing as pushing actions during
+  normal operation (Decision 3): whichever action has arrived by the
+  time a tick reads it is what's used, not necessarily tick 1
+  specifically. (Small gap-filling decision, same kind as Phase 3's
+  `CairoMakieRenderer` `summary_path` — the spec fixed the behavior's
+  intent and signature but not this one implementation detail; the
+  "before the next `start!`" phrasing here was corrected after Task
+  3's review caught that it described a physically unachievable
+  window — a channel `start!` hasn't built yet can't be pushed to.)
 
 ---
 
@@ -159,6 +238,26 @@ Expected: FAIL — `F1Tenth.LatestChannel` not defined.
 
 - [ ] **Step 3: Implement `latest_channel.jl`**
 
+> **Amendment (post-Task-1 review):** The first version of this block
+> composed `isready(lc.ch)` and `take!(lc.ch)`/`put!(lc.ch, v)` as two
+> separate, non-atomic steps in both `put_latest!` and `take_latest!`.
+> Task 1's review caught a real race: under genuine concurrent use
+> (the physics tier's `take_latest!` racing an external caller's
+> `put_latest!` on the same input channel, or symmetrically on the
+> output channel), one side's `isready` can see a stale value that the
+> other side drains first, so the loser's own `take!`/`put!` call
+> blocks — violating the "never blocks the producer/consumer"
+> guarantee this primitive exists to provide. `wait_latest!` is not
+> part of this race (a `put!` on an empty `Channel` with a pending
+> `take!` waiter is a direct, non-blocking handoff), and per this
+> package's actual call sites `wait_latest!` and `take_latest!` are
+> never both used against the same `LatestChannel` instance (a
+> renderer's `DropLatest` channel only ever receives `wait_latest!`
+> calls from its own render task; input/output channels only ever
+> receive `take_latest!` calls from their sole consumer) — so guarding
+> only `put_latest!`/`take_latest!` with a shared lock closes the race
+> without touching `wait_latest!`. Fixed version below; ship this one.
+
 Create `src/async/latest_channel.jl`:
 
 ```julia
@@ -172,20 +271,39 @@ Create `src/async/latest_channel.jl`:
 # each agent's input channel).
 struct LatestChannel{T}
     ch::Channel{T}
+    lock::ReentrantLock
 end
 
-LatestChannel{T}() where {T} = LatestChannel{T}(Channel{T}(1))
+LatestChannel{T}() where {T} = LatestChannel{T}(Channel{T}(1), ReentrantLock())
 
+# put_latest! and take_latest! share `lock` because each is a
+# check-then-act (isready, then take!/put!) that is not atomic on its
+# own -- without the lock, a concurrent put_latest!/take_latest! pair
+# can race such that one side's isready check is stale by the time it
+# acts, and that side's take!/put! call blocks. See the amendment note
+# above this block.
 function put_latest!(lc::LatestChannel{T}, v::T) where {T}
-    isready(lc.ch) && take!(lc.ch)
-    put!(lc.ch, v)
+    lock(lc.lock) do
+        isready(lc.ch) && take!(lc.ch)
+        put!(lc.ch, v)
+    end
     return nothing
 end
 
 function take_latest!(lc::LatestChannel{T}) where {T}
-    return isready(lc.ch) ? take!(lc.ch) : missing
+    return lock(lc.lock) do
+        isready(lc.ch) ? take!(lc.ch) : missing
+    end
 end
 
+# wait_latest! deliberately does not take `lock` -- it must be able to
+# block waiting for a value without holding a lock that put_latest!
+# needs in order to complete. This is safe without the lock: a put! on
+# an empty Channel with a pending take! waiter is a direct,
+# non-blocking handoff. This does require that wait_latest! and
+# take_latest! are never both called against the same LatestChannel
+# instance -- true of every use in this package (see the amendment
+# note above this block).
 wait_latest!(lc::LatestChannel{T}) where {T} = take!(lc.ch)
 ```
 
@@ -326,8 +444,15 @@ end
 if Threads.nthreads() >= 2
     @testset "AsyncSim: start!/stop! lifecycle advances physics and produces output" begin
         setup = _async_test_setup()
+        # Uses a nonzero initial velocity, not setup.states/setup.actions
+        # (both all-zero): step_dynamics on an all-zero state with a
+        # zero-order-held all-zero action is an exact fixed point (the
+        # derivative is identically zero), so a "did the state change"
+        # assertion against the default setup would always fail
+        # regardless of whether the physics tier is ticking correctly.
+        moving_states = [F1Tenth.State(0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0)]
         sim = F1Tenth.AsyncSim(setup.bvh, setup.params, setup.car, 0.01, setup.cfg,
-            setup.states, setup.actions)
+            moving_states, setup.actions)
 
         F1Tenth.start!(sim)
         local frame = missing
@@ -340,7 +465,7 @@ if Threads.nthreads() >= 2
 
         @test frame !== missing
         new_states, scans, collisions = frame
-        @test new_states != setup.states
+        @test new_states[1][1] > moving_states[1][1]  # x position advanced under constant forward velocity
         @test length(scans) == 1
         @test length(collisions) == 1
     end
@@ -368,7 +493,7 @@ if Threads.nthreads() >= 2
         sleep(0.3)
         F1Tenth.stop!(sim)
 
-        @test sim.states[1] != setup.states[1] || true  # reaching here without throwing is the main assertion
+        @test F1Tenth.take_latest!(sim.output) !== missing
     end
 else
     @warn "Skipping AsyncSim lifecycle tests: needs Threads.nthreads() >= 2; got $(Threads.nthreads())"
@@ -545,16 +670,20 @@ git commit -m "Add AsyncSim physics tier, lifecycle, and tick pacing"
 - Consumes: `AbstractRenderer`, `render!`, `reset!` (Phase 3);
   everything from Task 2.
 - Produces: `abstract type RenderBackpressure end`, `struct DropLatest
-  <: RenderBackpressure end`, `struct Blocking <: RenderBackpressure
-  end`.
-- Produces: `struct RendererEntry` with constructors
-  `RendererEntry(renderer::AbstractRenderer, ::DropLatest) ->
-  RendererEntry` and `RendererEntry(renderer::AbstractRenderer,
-  ::Blocking; buffer::Int=8) -> RendererEntry`.
+  <: RenderBackpressure end`, `struct Blocking <: RenderBackpressure;
+  buffer::Int end` (buffer lives on `Blocking` itself, not as a
+  keyword on `RendererEntry`'s constructor — see the amendment below).
+- Produces: `struct RendererEntry` with one constructor,
+  `RendererEntry(renderer::AbstractRenderer, policy::RenderBackpressure)
+  -> RendererEntry`, dispatching internally on `policy`'s concrete type
+  to build the right channel kind.
 - Produces: `AsyncSim`'s constructor gains
   `renderers::Vector{RendererEntry}=RendererEntry[]` keyword; `start!`
-  now also enforces `nthreads() >= 2 + length(sim.renderers)` and
-  spawns one `Task` per entry; `stop!` fetches those too.
+  now also enforces `nthreads() >= 2 + length(sim.renderers)`, spawns
+  one `Task` per entry, and (see the amendment below) rebuilds every
+  channel — input, output, and each renderer entry's — before spawning,
+  since a prior `stop!` permanently closed them; `stop!` fetches the
+  renderer tasks too.
 - Produces: `reset!(sim::AsyncSim, track::Track,
   initial_states::Vector{State}) -> AsyncSim`.
 - Produces (test-only): `FakeRenderer <: AbstractRenderer` in
@@ -652,6 +781,33 @@ if Threads.nthreads() >= 2
         @test all(a -> a == zero(F1Tenth.Action), sim.last_actions)
         @test isempty(fake.frames)
     end
+
+    @testset "AsyncSim: start! after stop!/reset! actually resumes ticking (regression)" begin
+        setup = _async_test_setup()
+        fake = FakeRenderer()
+        sim = F1Tenth.AsyncSim(setup.bvh, setup.params, setup.car, 0.01, setup.cfg,
+            setup.states, setup.actions; renderers=[F1Tenth.RendererEntry(fake, F1Tenth.DropLatest())])
+
+        F1Tenth.start!(sim)
+        sleep(0.1)
+        F1Tenth.stop!(sim)
+
+        moving_states = [F1Tenth.State(0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0)]
+        F1Tenth.reset!(sim, setup.track, moving_states)
+
+        F1Tenth.start!(sim)
+        local frame = missing
+        for _ in 1:200
+            frame = F1Tenth.take_latest!(sim.output)
+            frame === missing || break
+            sleep(0.01)
+        end
+        F1Tenth.stop!(sim)
+
+        @test frame !== missing
+        fresh_states, _, _ = frame
+        @test fresh_states[1][1] > moving_states[1][1]  # x advanced, i.e. physics genuinely resumed
+    end
 else
     @warn "Skipping AsyncSim renderer-tier tests: needs Threads.nthreads() >= 2; got $(Threads.nthreads())"
 end
@@ -664,6 +820,44 @@ Expected: FAIL — `F1Tenth.RendererEntry`/`F1Tenth.DropLatest`/
 `F1Tenth.Blocking` not defined, and `AsyncSim`'s constructor has no
 `renderers` keyword.
 
+> **Amendment (post-Task-3 review):** The first version of this task
+> had two problems, both caught by the implementer's own self-review
+> before ever reaching the task reviewer:
+>
+> 1. **Restart after `stop!` was silently broken.** `stop!` closes
+>    every channel via `_close_all_channels!`, and Julia `Channel`s
+>    cannot reopen once closed. `reset!` requires the sim already
+>    stopped and its documented workflow is "stop! → reset! → start!
+>    again" — but the original `start!` reused the same
+>    already-closed `Channel` objects on a restart. The physics tier's
+>    very first tick after restart would hit `put!`/`take!` on a
+>    closed channel, raise `InvalidStateException`, and since that
+>    exception type is `_physics_loop`'s designated "clean shutdown,
+>    do nothing" signal, the loop would just silently return —
+>    `running[]` stuck `true`, no error surfaced, no further ticking,
+>    forever, until the next explicit `stop!()`. Fix: `start!` now
+>    rebuilds `sim.input`, `sim.output`, and every renderer entry's
+>    channel from scratch before spawning any task — safe to do
+>    unconditionally, including on the very first `start!` call, since
+>    nothing is expected to have pre-seeded the input channels before
+>    a sim has ever started (the physics tier always falls back to
+>    `sim.last_actions`, which is unaffected by this and persists
+>    across restarts, when an input channel has nothing new on it).
+> 2. **Rebuilding a renderer's channel needs to preserve its
+>    `Blocking` buffer size.** The original design put `buffer` on
+>    `RendererEntry`'s constructor as a keyword consumed once at
+>    construction and then forgotten — a restart that reconstructs the
+>    entry from `(renderer, policy)` alone would silently reset any
+>    custom buffer size back to the default. Fix: `buffer` now lives as
+>    a field directly on `Blocking` itself, so it survives being
+>    read back out of `entry.policy` on every restart.
+>
+> Both are implementation-detail fixes within this task's own scope —
+> neither changes the public behavior described in the spec's Decision
+> 4 (per-renderer backpressure choice) or Decision 7 (`reset!`'s
+> signature and "stop, reset, start again" workflow); they make that
+> workflow actually work. Code below reflects the fix; ship this one.
+
 - [ ] **Step 3: Extend `sim.jl`**
 
 Modify `src/async/sim.jl`: insert the following block immediately
@@ -673,7 +867,10 @@ AsyncSim`:
 ```julia
 abstract type RenderBackpressure end
 struct DropLatest <: RenderBackpressure end
-struct Blocking <: RenderBackpressure end
+struct Blocking <: RenderBackpressure
+    buffer::Int
+end
+Blocking(; buffer::Int=8) = Blocking(buffer)
 
 struct RendererEntry
     renderer::AbstractRenderer
@@ -681,10 +878,11 @@ struct RendererEntry
     channel::Union{LatestChannel{RenderFrame},Channel{RenderFrame}}
 end
 
-RendererEntry(renderer::AbstractRenderer, ::DropLatest) =
-    RendererEntry(renderer, DropLatest(), LatestChannel{RenderFrame}())
-RendererEntry(renderer::AbstractRenderer, ::Blocking; buffer::Int=8) =
-    RendererEntry(renderer, Blocking(), Channel{RenderFrame}(buffer))
+_render_channel(::DropLatest) = LatestChannel{RenderFrame}()
+_render_channel(policy::Blocking) = Channel{RenderFrame}(policy.buffer)
+
+RendererEntry(renderer::AbstractRenderer, policy::RenderBackpressure) =
+    RendererEntry(renderer, policy, _render_channel(policy))
 ```
 
 Replace the `mutable struct AsyncSim ... end` block with:
@@ -808,6 +1006,14 @@ function start!(sim::AsyncSim)
         "$(length(sim.renderers)) renderer thread(s)); got $(nthreads()). " *
         "Start Julia with `julia --threads=$required` or set JULIA_NUM_THREADS=$required.")
     sim.error[] = nothing
+    # A prior stop! permanently closed every channel (Julia Channels
+    # cannot reopen) -- rebuild them here so start! works both the
+    # first time and after a stop!/reset!/start! cycle. Harmless to do
+    # unconditionally on the very first call too: nothing is expected
+    # to have queued input before a sim has ever started.
+    sim.input = [LatestChannel{Action}() for _ in 1:length(sim.states)]
+    sim.output = LatestChannel{RenderFrame}()
+    sim.renderers = [RendererEntry(entry.renderer, entry.policy) for entry in sim.renderers]
     sim.running[] = true
     empty!(sim.renderer_tasks)
     for entry in sim.renderers
