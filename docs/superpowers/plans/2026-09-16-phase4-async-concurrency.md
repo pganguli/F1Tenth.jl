@@ -591,16 +591,20 @@ git commit -m "Add AsyncSim physics tier, lifecycle, and tick pacing"
 - Consumes: `AbstractRenderer`, `render!`, `reset!` (Phase 3);
   everything from Task 2.
 - Produces: `abstract type RenderBackpressure end`, `struct DropLatest
-  <: RenderBackpressure end`, `struct Blocking <: RenderBackpressure
-  end`.
-- Produces: `struct RendererEntry` with constructors
-  `RendererEntry(renderer::AbstractRenderer, ::DropLatest) ->
-  RendererEntry` and `RendererEntry(renderer::AbstractRenderer,
-  ::Blocking; buffer::Int=8) -> RendererEntry`.
+  <: RenderBackpressure end`, `struct Blocking <: RenderBackpressure;
+  buffer::Int end` (buffer lives on `Blocking` itself, not as a
+  keyword on `RendererEntry`'s constructor — see the amendment below).
+- Produces: `struct RendererEntry` with one constructor,
+  `RendererEntry(renderer::AbstractRenderer, policy::RenderBackpressure)
+  -> RendererEntry`, dispatching internally on `policy`'s concrete type
+  to build the right channel kind.
 - Produces: `AsyncSim`'s constructor gains
   `renderers::Vector{RendererEntry}=RendererEntry[]` keyword; `start!`
-  now also enforces `nthreads() >= 2 + length(sim.renderers)` and
-  spawns one `Task` per entry; `stop!` fetches those too.
+  now also enforces `nthreads() >= 2 + length(sim.renderers)`, spawns
+  one `Task` per entry, and (see the amendment below) rebuilds every
+  channel — input, output, and each renderer entry's — before spawning,
+  since a prior `stop!` permanently closed them; `stop!` fetches the
+  renderer tasks too.
 - Produces: `reset!(sim::AsyncSim, track::Track,
   initial_states::Vector{State}) -> AsyncSim`.
 - Produces (test-only): `FakeRenderer <: AbstractRenderer` in
@@ -698,6 +702,33 @@ if Threads.nthreads() >= 2
         @test all(a -> a == zero(F1Tenth.Action), sim.last_actions)
         @test isempty(fake.frames)
     end
+
+    @testset "AsyncSim: start! after stop!/reset! actually resumes ticking (regression)" begin
+        setup = _async_test_setup()
+        fake = FakeRenderer()
+        sim = F1Tenth.AsyncSim(setup.bvh, setup.params, setup.car, 0.01, setup.cfg,
+            setup.states, setup.actions; renderers=[F1Tenth.RendererEntry(fake, F1Tenth.DropLatest())])
+
+        F1Tenth.start!(sim)
+        sleep(0.1)
+        F1Tenth.stop!(sim)
+
+        moving_states = [F1Tenth.State(0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0)]
+        F1Tenth.reset!(sim, setup.track, moving_states)
+
+        F1Tenth.start!(sim)
+        local frame = missing
+        for _ in 1:200
+            frame = F1Tenth.take_latest!(sim.output)
+            frame === missing || break
+            sleep(0.01)
+        end
+        F1Tenth.stop!(sim)
+
+        @test frame !== missing
+        fresh_states, _, _ = frame
+        @test fresh_states[1][1] > moving_states[1][1]  # x advanced, i.e. physics genuinely resumed
+    end
 else
     @warn "Skipping AsyncSim renderer-tier tests: needs Threads.nthreads() >= 2; got $(Threads.nthreads())"
 end
@@ -710,6 +741,44 @@ Expected: FAIL — `F1Tenth.RendererEntry`/`F1Tenth.DropLatest`/
 `F1Tenth.Blocking` not defined, and `AsyncSim`'s constructor has no
 `renderers` keyword.
 
+> **Amendment (post-Task-3 review):** The first version of this task
+> had two problems, both caught by the implementer's own self-review
+> before ever reaching the task reviewer:
+>
+> 1. **Restart after `stop!` was silently broken.** `stop!` closes
+>    every channel via `_close_all_channels!`, and Julia `Channel`s
+>    cannot reopen once closed. `reset!` requires the sim already
+>    stopped and its documented workflow is "stop! → reset! → start!
+>    again" — but the original `start!` reused the same
+>    already-closed `Channel` objects on a restart. The physics tier's
+>    very first tick after restart would hit `put!`/`take!` on a
+>    closed channel, raise `InvalidStateException`, and since that
+>    exception type is `_physics_loop`'s designated "clean shutdown,
+>    do nothing" signal, the loop would just silently return —
+>    `running[]` stuck `true`, no error surfaced, no further ticking,
+>    forever, until the next explicit `stop!()`. Fix: `start!` now
+>    rebuilds `sim.input`, `sim.output`, and every renderer entry's
+>    channel from scratch before spawning any task — safe to do
+>    unconditionally, including on the very first `start!` call, since
+>    nothing is expected to have pre-seeded the input channels before
+>    a sim has ever started (the physics tier always falls back to
+>    `sim.last_actions`, which is unaffected by this and persists
+>    across restarts, when an input channel has nothing new on it).
+> 2. **Rebuilding a renderer's channel needs to preserve its
+>    `Blocking` buffer size.** The original design put `buffer` on
+>    `RendererEntry`'s constructor as a keyword consumed once at
+>    construction and then forgotten — a restart that reconstructs the
+>    entry from `(renderer, policy)` alone would silently reset any
+>    custom buffer size back to the default. Fix: `buffer` now lives as
+>    a field directly on `Blocking` itself, so it survives being
+>    read back out of `entry.policy` on every restart.
+>
+> Both are implementation-detail fixes within this task's own scope —
+> neither changes the public behavior described in the spec's Decision
+> 4 (per-renderer backpressure choice) or Decision 7 (`reset!`'s
+> signature and "stop, reset, start again" workflow); they make that
+> workflow actually work. Code below reflects the fix; ship this one.
+
 - [ ] **Step 3: Extend `sim.jl`**
 
 Modify `src/async/sim.jl`: insert the following block immediately
@@ -719,7 +788,10 @@ AsyncSim`:
 ```julia
 abstract type RenderBackpressure end
 struct DropLatest <: RenderBackpressure end
-struct Blocking <: RenderBackpressure end
+struct Blocking <: RenderBackpressure
+    buffer::Int
+end
+Blocking(; buffer::Int=8) = Blocking(buffer)
 
 struct RendererEntry
     renderer::AbstractRenderer
@@ -727,10 +799,11 @@ struct RendererEntry
     channel::Union{LatestChannel{RenderFrame},Channel{RenderFrame}}
 end
 
-RendererEntry(renderer::AbstractRenderer, ::DropLatest) =
-    RendererEntry(renderer, DropLatest(), LatestChannel{RenderFrame}())
-RendererEntry(renderer::AbstractRenderer, ::Blocking; buffer::Int=8) =
-    RendererEntry(renderer, Blocking(), Channel{RenderFrame}(buffer))
+_render_channel(::DropLatest) = LatestChannel{RenderFrame}()
+_render_channel(policy::Blocking) = Channel{RenderFrame}(policy.buffer)
+
+RendererEntry(renderer::AbstractRenderer, policy::RenderBackpressure) =
+    RendererEntry(renderer, policy, _render_channel(policy))
 ```
 
 Replace the `mutable struct AsyncSim ... end` block with:
@@ -854,6 +927,14 @@ function start!(sim::AsyncSim)
         "$(length(sim.renderers)) renderer thread(s)); got $(nthreads()). " *
         "Start Julia with `julia --threads=$required` or set JULIA_NUM_THREADS=$required.")
     sim.error[] = nothing
+    # A prior stop! permanently closed every channel (Julia Channels
+    # cannot reopen) -- rebuild them here so start! works both the
+    # first time and after a stop!/reset!/start! cycle. Harmless to do
+    # unconditionally on the very first call too: nothing is expected
+    # to have queued input before a sim has ever started.
+    sim.input = [LatestChannel{Action}() for _ in 1:length(sim.states)]
+    sim.output = LatestChannel{RenderFrame}()
+    sim.renderers = [RendererEntry(entry.renderer, entry.policy) for entry in sim.renderers]
     sim.running[] = true
     empty!(sim.renderer_tasks)
     for entry in sim.renderers
