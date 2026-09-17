@@ -30,8 +30,9 @@ The full 5-phase blueprint (given once, not otherwise saved in the repo):
   revised mid-implementation — see below; both are regular dependencies
   now, not weakdeps.)
 - **Phase 4 — Async Concurrency & Control Channels.** Multi-threaded
-  sim loop, 3-tier `Channel` pipeline (input / physics / render). **Not
-  started.**
+  sim loop, `AsyncSim`. **Done, merged to `main`.** (The blueprint's
+  "3-tier `Channel` pipeline" wording survives as two owned thread
+  kinds — physics and render — not three; see below.)
 - **Phase 5 — Reachability Analysis & Telemetry Export.**
   `ReachabilityAnalysis.jl` hybrid-system reachability over the Phase 1
   dynamics, `Arrow.jl` telemetry logging. **Not started.**
@@ -447,18 +448,143 @@ both, including ones who only ever construct a `NullRenderer`.
   test runs — same cosmetic pattern already noted for Phase 2's
   `_square_room_bvh` helper.
 
+## Phase 4 — what actually got built
+
+Files: `src/async/{latest_channel,sim}.jl`,
+`test/async/{latest_channel,testutils,sim}_test.jl`, `test/exports_test.jl`
+updated, `src/F1Tenth.jl` updated (includes + exports),
+`.github/workflows/CI.yml` updated (`JULIA_NUM_THREADS: '4'`, needed
+for the concurrency-dependent tests to actually run instead of skip).
+
+The blueprint's "3-tier `Channel` pipeline (input / physics / render)"
+guess didn't survive brainstorming's push-based-input decision: a
+dedicated input-processing thread would just be a pass-through with no
+behavioral benefit, since external code (a policy, a human-input
+handler, a training loop) already writes directly into per-agent
+channels from its own thread. `AsyncSim` owns exactly two *kinds* of
+thread — one physics tier, one render tier per attached renderer — not
+three.
+
+- `latest_channel.jl` — `LatestChannel{T}` (wraps a capacity-1
+  `Channel{T}`), `put_latest!`/`take_latest!` (both non-blocking,
+  overwrite-on-put / drain-on-take), `wait_latest!` (blocks). This one
+  primitive backs both zero-order-hold input actions and drop-latest
+  render-frame delivery — no other channel primitive exists in this
+  package.
+- `sim.jl` — `AsyncSim` (physics tier + lifecycle: `start!`/`stop!`/
+  `reset!`), `RenderBackpressure` (`DropLatest`/`Blocking`),
+  `RendererEntry`. Tick pacing is one code path, two modes:
+  `tick_hz=nothing` runs flat-out (training throughput), a numeric
+  `tick_hz` paces to a wall-clock deadline (live/interactive). Any
+  tier's exception is fail-fast: it records the error, flips
+  `running[]`, closes every channel (waking the other tiers, which
+  treat `InvalidStateException` from a closed channel as a clean-exit
+  signal), and `stop!` re-surfaces the original exception to the
+  caller.
+
+### Load-bearing facts a fresh agent must not re-derive from scratch
+
+1. **`LatestChannel`'s `put_latest!`/`take_latest!` synchronize via the
+   `Channel`'s own built-in lock (`lock(lc.ch) do ... end`), not a
+   custom field.** An earlier version added a separate
+   `ReentrantLock` field to close a race between `put_latest!` and
+   `take_latest!` — but that left `wait_latest!` (a bare `take!(lc.ch)`,
+   used by every `DropLatest` renderer's task) unprotected against
+   `put_latest!`, which can then block forever inside its own drain
+   step while holding the custom lock. This was only caught by the
+   final whole-branch review, after Task 1 (which added the custom
+   lock) and Task 3 (which introduced the `put_latest!`-vs-`wait_latest!`
+   pairing on every `DropLatest` channel) had each individually passed
+   review — a cross-task defect neither could see alone. Fixed by
+   dropping the custom lock and using `Channel`'s own lock instead,
+   which `take!`/`put!`/`isready` already acquire internally, so a
+   concurrent `wait_latest!` is now correctly excluded too. Don't
+   reintroduce a separate lock field for this primitive.
+2. **`start!` rebuilds `sim.input`, `sim.output`, and every renderer's
+   channel — but only the ones that are actually closed.** Julia
+   `Channel`s cannot reopen once closed, and `stop!` closes all of
+   them. `reset!`'s documented workflow is "stop! → reset! → start!
+   again"; without this rebuild, a restart after `stop!` silently
+   deadlocks the physics tier on its first tick (an
+   `InvalidStateException` on a closed channel is `_physics_loop`'s
+   designated "clean shutdown" signal, so it exits with no ticking, no
+   error, and `running[]` stuck `true` forever). Rebuilding
+   *unconditionally* would instead silently discard any action a
+   caller pushed to `sim.input` before the very first `start!` call —
+   hence the `isopen(...)` check, not a blanket rebuild.
+3. **A caller must push custom post-`reset!` actions *after* `start!`
+   returns, never before.** `start!` invalidates every previously-held
+   channel reference for anything it actually rebuilds. `reset!` itself
+   zeros `last_actions` to `zero(Action)` rather than requiring
+   re-seeding — a caller that doesn't push anything just gets a
+   zero-action restart, same zero-order-hold semantics as normal
+   operation.
+4. **`start!`/`stop!`/`reset!` must be called from a single owning
+   thread/task — this is a documented, not enforced, invariant**
+   (comment above `mutable struct AsyncSim` in `sim.jl`). Two
+   overlapping `start!` calls could both pass the guard before either
+   sets state, since nothing serializes the lifecycle methods
+   themselves. Not fixed — deferred, since the sim's normal usage
+   pattern (one controller thread; other threads only ever
+   `put_latest!`/`take_latest!` on the channels) never exercises this.
+5. **`_required_threads(sim) = 2 + length(sim.renderers)` — a headless
+   `AsyncSim` (no renderers) only needs `nthreads() >= 2`, but any
+   renderer bumps that.** CI runs with `JULIA_NUM_THREADS=4`
+   specifically so the renderer-tier tests exercise real concurrency
+   instead of skipping.
+
+### Known deferred minors (not blocking, listed so you don't re-flag them)
+
+- `_physics_loop`/`_renderer_loop` distinguish "deliberate shutdown"
+  from "genuine error" purely by exception *type*
+  (`InvalidStateException`), not by whether `stop!` actually requested
+  the shutdown. A future dependency that legitimately throws
+  `InvalidStateException` for an unrelated reason would be silently
+  swallowed as a clean exit. Not exercised today (`step_multi_agent!`
+  has no `Channel` use).
+- `tick_hz` real-time pacing has no catch-up-loop guard: after a long
+  stall (a GC pause, a `Blocking` renderer backing up), `deadline`
+  lags wall-clock and the next several ticks run back-to-back with no
+  sleep until the deadline catches up. Matches the spec's "no
+  catch-up loop" language, but worth knowing if a caller expects
+  strictly `1/tick_hz`-spaced ticks even after a stall.
+- `stop!`'s `catch` around each task's `fetch` is a bare `catch` — a
+  tier throwing a non-`Exception` value would raise a `MethodError`
+  inside `_record_error!` and skip both the record and
+  `_close_all_channels!`. Narrow; no current path throws a
+  non-`Exception`.
+- No test exercises a zero-agent `AsyncSim`, or a renderer failing on
+  its very first `render!` call (only "fails on the Nth call" is
+  tested).
+- `reset!` zeroing `last_actions` to `zero(Action)` is a plan-level
+  implementation choice, not something the spec pins down exactly —
+  the spec's own Decision 7 language ("the caller must seed fresh
+  initial actions") is slightly stronger than what's actually
+  enforced (nothing errors if the caller doesn't reseed; it just gets
+  zero actions). Worth reconciling spec wording if Phase 5 or a future
+  revision touches this file.
+- Fault-injection and lifecycle tests in `test/async/sim_test.jl` use
+  either a fixed `sleep()` or a poll-with-timeout loop to let
+  background tasks reach a target state before asserting — consistent
+  within the file, but the fixed-`sleep()` variants are a latent
+  flakiness source under heavy CI load; the poll-with-timeout pattern
+  (used by most tests in the file) is the more robust one if any of
+  these start flaking.
+
 ## Where to go next
 
-Phase 4 (Async Concurrency & Control Channels) hasn't been
-brainstormed yet. Start there with `superpowers:brainstorming` — it
-inherits one explicitly open question from Phase 3: `render!` is
-currently called synchronously, once per tick, by whatever loop calls
-it (spec's Non-goals and Open Questions sections say so explicitly).
-Phase 4 needs to decide which thread/tier of its 3-tier `Channel`
-pipeline (input / physics / render) owns rendering, and whether render
-calls can be dropped or coalesced under backpressure — none of that is
-decided yet. Phase 4 will also inherit Phase 3's "every `F1Tenth` user
-installs GLMakie+CairoMakie unconditionally" cost (load-bearing fact 1
-above); if that tradeoff becomes painful at Phase 4's concurrency
-scale, revisiting Phase 1's `__init__` pattern to make package
-extensions viable again is the documented escape hatch.
+Phase 5 (Reachability Analysis & Telemetry Export) hasn't been
+brainstormed yet. Start there with `superpowers:brainstorming`.
+`AsyncSim`'s `output::LatestChannel` (physics tier's per-tick
+`(states, scans, collisions)`) is a natural attachment point for an
+`Arrow.jl` telemetry sink — a consumer just needs to `take_latest!` or
+`wait_latest!` it like any other reader. For the reachability side,
+recall Phase 1's `KS_MODE`/`ST_MODE` (not `dynamics_rhs`) are the
+correct building blocks for a `HybridSystem` — see Phase 1's
+load-bearing fact 1 above — and Phase 2's `to_lazysets` already exports
+track geometry as `LazySets.VPolygon`s for guards/invariants, with the
+self-intersecting-quad caveat noted in Phase 2's load-bearing fact 5.
+Phase 4 leaves no new open questions of its own; the "every `F1Tenth`
+user installs GLMakie+CairoMakie unconditionally" cost from Phase 3
+(load-bearing fact 1 in that section) is unchanged and still the
+documented escape hatch if it becomes painful.
