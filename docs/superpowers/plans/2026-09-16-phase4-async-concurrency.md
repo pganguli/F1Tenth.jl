@@ -65,11 +65,18 @@ either already a dependency or part of Base/stdlib.
   previous episode's last actions were. This plan resolves that by
   zeroing `last_actions` to `zero(Action)` on `reset!` — a caller
   wanting different reset actions pushes them onto the input channels
-  before the next `start!`, which picks them up on tick 1 instead of
-  the zero default. (Small gap-filling decision, same kind as Phase
-  3's `CairoMakieRenderer` `summary_path` — the spec fixed the
-  behavior's intent and signature but not this one implementation
-  detail.)
+  *after* the next `start!` returns (not before: `start!` rebuilds
+  every channel from scratch — see Task 3's restart-fix amendment — so
+  a channel reference obtained before that call is stale). This is the
+  same zero-order-hold, best-effort timing as pushing actions during
+  normal operation (Decision 3): whichever action has arrived by the
+  time a tick reads it is what's used, not necessarily tick 1
+  specifically. (Small gap-filling decision, same kind as Phase 3's
+  `CairoMakieRenderer` `summary_path` — the spec fixed the behavior's
+  intent and signature but not this one implementation detail; the
+  "before the next `start!`" phrasing here was corrected after Task
+  3's review caught that it described a physically unachievable
+  window — a channel `start!` hasn't built yet can't be pushed to.)
 
 ---
 
