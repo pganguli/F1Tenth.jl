@@ -17,3 +17,24 @@ function _async_test_setup(; n_agents::Int=1)
     actions = [F1Tenth.Action(0.0, 0.0) for _ in 1:n_agents]
     return (; track, bvh, params, car, cfg, states, actions)
 end
+
+mutable struct FakeRenderer <: F1Tenth.AbstractRenderer
+    frames::Vector{Any}
+    fail_on_call::Int
+    calls::Int
+end
+
+FakeRenderer(; fail_on_call::Int=0) = FakeRenderer(Any[], fail_on_call, 0)
+
+F1Tenth.init!(r::FakeRenderer, track::F1Tenth.Track) = r
+
+function F1Tenth.render!(r::FakeRenderer, states::Vector{F1Tenth.State},
+    scans::Vector{Vector{Float64}}, collisions::Vector{Bool})
+    r.calls += 1
+    r.fail_on_call != 0 && r.calls == r.fail_on_call && error("FakeRenderer: forced failure")
+    push!(r.frames, (copy(states), copy(scans), copy(collisions)))
+    return nothing
+end
+
+F1Tenth.close!(r::FakeRenderer) = nothing
+F1Tenth.reset!(r::FakeRenderer, track::F1Tenth.Track) = (empty!(r.frames); r.calls = 0; r)

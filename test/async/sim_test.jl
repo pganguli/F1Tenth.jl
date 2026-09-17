@@ -77,3 +77,66 @@ if Threads.nthreads() >= 2
 else
     @warn "Skipping AsyncSim lifecycle tests: needs Threads.nthreads() >= 2; got $(Threads.nthreads())"
 end
+
+@testset "AsyncSim: start! enforces threads for physics + every renderer" begin
+    setup = _async_test_setup()
+    renderers = [F1Tenth.RendererEntry(FakeRenderer(), F1Tenth.DropLatest())
+                 for _ in 1:(Threads.nthreads() + 3)]
+    sim = F1Tenth.AsyncSim(setup.bvh, setup.params, setup.car, 0.01, setup.cfg,
+        setup.states, setup.actions; renderers=renderers)
+    @test_throws ErrorException F1Tenth.start!(sim)
+end
+
+if Threads.nthreads() >= 2
+    @testset "AsyncSim: DropLatest renderer receives frames without blocking physics" begin
+        setup = _async_test_setup()
+        fake = FakeRenderer()
+        sim = F1Tenth.AsyncSim(setup.bvh, setup.params, setup.car, 0.01, setup.cfg,
+            setup.states, setup.actions; renderers=[F1Tenth.RendererEntry(fake, F1Tenth.DropLatest())])
+
+        F1Tenth.start!(sim)
+        sleep(0.2)
+        F1Tenth.stop!(sim)
+
+        @test fake.calls > 0
+    end
+
+    @testset "AsyncSim: tick_hz paces every tick to the wall-clock rate (Blocking renderer)" begin
+        setup = _async_test_setup()
+        fake = FakeRenderer()
+        hz = 20.0
+        sim = F1Tenth.AsyncSim(setup.bvh, setup.params, setup.car, 0.01, setup.cfg,
+            setup.states, setup.actions; tick_hz=hz,
+            renderers=[F1Tenth.RendererEntry(fake, F1Tenth.Blocking())])
+
+        F1Tenth.start!(sim)
+        t0 = time()
+        sleep(1.0)
+        elapsed = time() - t0
+        F1Tenth.stop!(sim)
+
+        expected = hz * elapsed
+        @test fake.calls > 0.5 * expected
+        @test fake.calls < 1.5 * expected
+    end
+
+    @testset "AsyncSim: reset! requires the sim to be stopped, then clears state" begin
+        setup = _async_test_setup()
+        fake = FakeRenderer()
+        sim = F1Tenth.AsyncSim(setup.bvh, setup.params, setup.car, 0.01, setup.cfg,
+            setup.states, setup.actions; renderers=[F1Tenth.RendererEntry(fake, F1Tenth.DropLatest())])
+
+        F1Tenth.start!(sim)
+        @test_throws ErrorException F1Tenth.reset!(sim, setup.track, setup.states)
+        F1Tenth.stop!(sim)
+
+        new_states = [F1Tenth.State(9.0, 9.0, 0.0, 0.0, 0.0, 0.0, 0.0)]
+        F1Tenth.reset!(sim, setup.track, new_states)
+
+        @test sim.states == new_states
+        @test all(a -> a == zero(F1Tenth.Action), sim.last_actions)
+        @test isempty(fake.frames)
+    end
+else
+    @warn "Skipping AsyncSim renderer-tier tests: needs Threads.nthreads() >= 2; got $(Threads.nthreads())"
+end
