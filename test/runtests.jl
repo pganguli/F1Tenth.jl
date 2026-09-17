@@ -13,5 +13,6 @@ using Test
     include("geometry/step2_test.jl")
     include("geometry/lazysets_export_test.jl")
     include("render/null_test.jl")
+    include("render/glmakie_test.jl")
     include("exports_test.jl")
 end
