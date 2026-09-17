@@ -159,6 +159,26 @@ Expected: FAIL — `F1Tenth.LatestChannel` not defined.
 
 - [ ] **Step 3: Implement `latest_channel.jl`**
 
+> **Amendment (post-Task-1 review):** The first version of this block
+> composed `isready(lc.ch)` and `take!(lc.ch)`/`put!(lc.ch, v)` as two
+> separate, non-atomic steps in both `put_latest!` and `take_latest!`.
+> Task 1's review caught a real race: under genuine concurrent use
+> (the physics tier's `take_latest!` racing an external caller's
+> `put_latest!` on the same input channel, or symmetrically on the
+> output channel), one side's `isready` can see a stale value that the
+> other side drains first, so the loser's own `take!`/`put!` call
+> blocks — violating the "never blocks the producer/consumer"
+> guarantee this primitive exists to provide. `wait_latest!` is not
+> part of this race (a `put!` on an empty `Channel` with a pending
+> `take!` waiter is a direct, non-blocking handoff), and per this
+> package's actual call sites `wait_latest!` and `take_latest!` are
+> never both used against the same `LatestChannel` instance (a
+> renderer's `DropLatest` channel only ever receives `wait_latest!`
+> calls from its own render task; input/output channels only ever
+> receive `take_latest!` calls from their sole consumer) — so guarding
+> only `put_latest!`/`take_latest!` with a shared lock closes the race
+> without touching `wait_latest!`. Fixed version below; ship this one.
+
 Create `src/async/latest_channel.jl`:
 
 ```julia
@@ -172,20 +192,39 @@ Create `src/async/latest_channel.jl`:
 # each agent's input channel).
 struct LatestChannel{T}
     ch::Channel{T}
+    lock::ReentrantLock
 end
 
-LatestChannel{T}() where {T} = LatestChannel{T}(Channel{T}(1))
+LatestChannel{T}() where {T} = LatestChannel{T}(Channel{T}(1), ReentrantLock())
 
+# put_latest! and take_latest! share `lock` because each is a
+# check-then-act (isready, then take!/put!) that is not atomic on its
+# own -- without the lock, a concurrent put_latest!/take_latest! pair
+# can race such that one side's isready check is stale by the time it
+# acts, and that side's take!/put! call blocks. See the amendment note
+# above this block.
 function put_latest!(lc::LatestChannel{T}, v::T) where {T}
-    isready(lc.ch) && take!(lc.ch)
-    put!(lc.ch, v)
+    lock(lc.lock) do
+        isready(lc.ch) && take!(lc.ch)
+        put!(lc.ch, v)
+    end
     return nothing
 end
 
 function take_latest!(lc::LatestChannel{T}) where {T}
-    return isready(lc.ch) ? take!(lc.ch) : missing
+    return lock(lc.lock) do
+        isready(lc.ch) ? take!(lc.ch) : missing
+    end
 end
 
+# wait_latest! deliberately does not take `lock` -- it must be able to
+# block waiting for a value without holding a lock that put_latest!
+# needs in order to complete. This is safe without the lock: a put! on
+# an empty Channel with a pending take! waiter is a direct,
+# non-blocking handoff. This does require that wait_latest! and
+# take_latest! are never both called against the same LatestChannel
+# instance -- true of every use in this package (see the amendment
+# note above this block).
 wait_latest!(lc::LatestChannel{T}) where {T} = take!(lc.ch)
 ```
 
