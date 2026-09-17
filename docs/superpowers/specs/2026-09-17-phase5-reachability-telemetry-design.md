@@ -66,32 +66,82 @@ of the `v = 0.5` transition use an identity reset map (no state
 component changes value at the switch), since `:ks`/`:st` already
 share one 7-dimensional space by construction.
 
-**Attempted mechanism (primary): native `HybridSystems.jl` automaton.**
-`build_hybrid_system` constructs a genuine `HybridSystems.HybridSystem`
-(a 2-node `LightAutomaton`, one continuous mode per node built from
-`KS_MODE`/`ST_MODE`'s MTK-generated dynamics, one guarded
-identity-reset transition per direction) and hands the whole thing to
-`ReachabilityAnalysis.solve`.
+**Control-input uncertainty is modeled by state augmentation, not a
+separate `input_set` at the `HybridSystem` level.** `TMJets`-style
+Taylor-model reachability, as used by `ReachabilityAnalysis.jl`, takes
+one initial box and integrates it forward; there is no separate,
+independently-varying disturbance/control channel it re-samples at
+each step. The standard technique (used throughout this project's
+reachability literature, not invented here) is to augment the state
+with the uncertain inputs as extra dimensions with zero dynamics: each
+mode's `@taylorize`d function operates on a 9-dimensional augmented
+state `(x, y, δ, v, ψ, ψ̇, β, a, δ̇)` with `D(a) = 0`, `D(δ̇) = 0` added
+to whichever 7 equations it already mirrors from `_ks_eqs`/`_st_eqs`
+(which reference `a`/`δ̇` as parameters — now the last two components
+of this same augmented state vector instead). This is a real,
+accepted conservatism: it holds `a`/`δ̇` bounded within their initial
+box for the *entire* analysis horizon rather than modeling them as
+independently time-varying within that box at every instant — noted
+in Open Questions.
 
-**Fallback mechanism, if the above proves unworkable:** per Phase 1's
-load-bearing fact 2, `mtkcompile(KS_MODE)` silently drops to 5 unknowns
-while `ST_MODE` stays at 7 — if `HybridSystems.jl`'s automaton
-construction requires each mode's continuous dynamics pre-compiled to a
-concrete `ODEFunction`-like form (likely) and that compilation step
-reintroduces this dimension mismatch (or any other MTK/HybridSystems
-API incompatibility discovered during implementation), `reachability_analyze`
-(Decision 2) instead drives per-mode continuous reachability directly —
-one `ReachabilityAnalysis.solve` call per mode segment using
-`TMJets`/`@ivp` — and detects the `v = 0.5` crossing plus applies the
-identity reset itself, in a plain Julia loop, re-initializing the next
-continuous solve from the prior flowpipe's boundary set. `Decision 1`'s
-and `Decision 2`'s **public signatures are identical either way** — no
-caller-facing change — so this is purely an internal implementation
-choice. If this fallback is taken, this section gets an inline
-amendment recording why, matching how Phase 3's Decision 3 was amended
-after its package-extension approach didn't survive contact with
-Phase 1's `__init__` pattern. The implementing agent must escalate to
-the project owner before taking the fallback, not pivot silently.
+**Amended before implementation began** (see addendum at the end of
+this section for why). Originally this decision's primary mechanism
+was a native `HybridSystems.jl` automaton built directly from
+`KS_MODE`/`ST_MODE`'s MTK-generated dynamics (Approach A from
+brainstorming), falling back to a hand-rolled per-mode driver
+(Approach C) only if that proved unworkable during implementation.
+Investigating the actual installed `ReachabilityAnalysis.jl`/
+`HybridSystems.jl` APIs (reading their source directly, not guessing)
+before writing the plan found Approach A's literal mechanism
+**cannot** work at all, for two independent reasons, so the fallback
+is adopted as the plan's starting point rather than as a
+contingency to discover mid-implementation:
+
+1. `ReachabilityAnalysis.jl`'s `ModelingToolkit` integration is dead
+   code — `src/Initialization/init.jl`'s `__init__` has
+   `#@require ModelingToolkit = ... include("init_ModelingToolkit.jl")`
+   commented out, and neither `[weakdeps]` nor `[extensions]` exist in
+   its `Project.toml`. There is no code path that accepts an MTK
+   `System` (`KS_MODE`/`ST_MODE`) directly.
+2. Nonlinear modes in `ReachabilityAnalysis.jl`'s hybrid-system API
+   (confirmed against its own test suite, e.g.
+   `test/models/hybrid/lotka_volterra.jl`) are plain Julia functions
+   annotated with the `@taylorize` macro:
+   `@taylorize function f!(du, u, p, t) ... end`, then
+   `@system(x' = f!(x), dim:N, x ∈ invariant)`. `@taylorize` is a
+   macro — it transforms a function's *source code* at macroexpansion
+   time. `KS_RHS`/`ST_RHS` (Phase 1's `mtk_models.jl`) are
+   `@eval`'d into existence at runtime, inside `__mtk_models_init__()`,
+   from a `build_function`-generated `Expr` — there is no source form
+   for `@taylorize` to macroexpand, at any point before or after
+   `F1Tenth` loads. This isn't a version-specific quirk to retry after
+   an upgrade; it's the fundamental mismatch between a compile-time
+   macro and a runtime-`@eval`'d closure.
+
+**Mechanism, as amended:** `build_hybrid_system` still produces a
+genuine `HybridSystems.HybridSystem` (a `GraphAutomaton` with 2 states,
+`ConstrainedIdentityMap` reset transitions in both directions,
+`AutonomousSwitching()`) — matching this decision's automaton
+structure — but each mode's continuous dynamics is a hand-written,
+`@taylorize`d Julia function that mirrors `KS_MODE`'s/`ST_MODE`'s
+equations line-for-line (transcribed from `src/dynamics/mtk_models.jl`'s
+`_ks_eqs`/`_st_eqs`), rather than reusing `KS_MODE`/`ST_MODE`/`KS_RHS`/
+`ST_RHS` as a value. `reachability_analyze` (Decision 2) then calls
+`ReachabilityAnalysis.solve` once on the whole 2-mode `HybridSystem` —
+the *automaton-level* integration originally intended by Approach A,
+not Approach C's per-mode-solve-plus-manual-switch-detection driver.
+Keeping both equation sets in sync by hand (rather than by
+construction) is a real, accepted cost of this amendment: a future
+change to `_ks_eqs`/`_st_eqs` in `mtk_models.jl` must be manually
+mirrored into the reachability module's `@taylorize`d functions, with
+nothing enforcing that they stay identical beyond a comment pointing
+each definition at the other and a test that checks their outputs
+agree at sample points (Decision 1's implementation task includes this
+cross-check test). Flagged in Open Questions as a maintenance burden a
+future phase could remove if `ModelingToolkit`/`Symbolics` ever gains a
+supported path to emit `@taylorize`-compatible source, or if
+`ReachabilityAnalysis.jl` starts accepting un-`@taylorize`d functions
+for `TMJets` without a large performance cliff.
 
 ### 2. `reachability_analyze`: flowpipe computation over `Zonotope` bounds
 
@@ -103,16 +153,22 @@ reachability_analyze(hs, initial_set::LazySets.Zonotope,
 
 `initial_set` bounds the uncertain starting state (7-dimensional,
 matching `State`); `input_set` bounds uncertain control input over the
-analysis horizon (2-dimensional, matching `Action`). `Zonotope`s are
-used (not hyperrectangles) for tighter, correlation-aware
-over-approximation, per the project owner's explicit choice — accepted
-even though this makes caller-side construction (specifying a center
-+ generator matrix rather than plain per-dimension `[lo, hi]` bounds)
-less immediately intuitive than a hyperrectangle would have been.
-`tspan` is the analysis time horizon in seconds. Returns
-`ReachabilityAnalysis.jl`'s own `Flowpipe` type unchanged — Decision 3
-consumes it directly, so the primary-vs-fallback choice in Decision 1
-is fully invisible downstream.
+analysis horizon (2-dimensional, matching `Action`). Internally,
+`reachability_analyze` takes the Cartesian product of the two into one
+9-dimensional `Zonotope` (via `initial_set × input_set`, `LazySets`'
+Cartesian-product operator) before constructing the `InitialValueProblem`,
+per Decision 1's state-augmentation technique — this 9-D combination is
+never exposed to the caller, who only ever supplies/reasons about the
+7-D state and 2-D input sets separately. `Zonotope`s are used (not
+hyperrectangles) for tighter, correlation-aware over-approximation, per
+the project owner's explicit choice — accepted even though this makes
+caller-side construction (specifying a center + generator matrix rather
+than plain per-dimension `[lo, hi]` bounds) less immediately intuitive
+than a hyperrectangle would have been. `tspan` is the analysis time
+horizon in seconds. Returns `ReachabilityAnalysis.jl`'s own `Flowpipe`
+type, whose reach-sets are 9-dimensional (state + the two augmented
+input dimensions) — Decision 3 projects onto just the `(x, y)`
+components it needs and ignores the rest.
 
 ### 3. `check_flowpipe_safety`: flowpipe vs. track-corridor containment
 
@@ -244,10 +300,15 @@ test/telemetry/
 
 `src/F1Tenth.jl` gains four new `include`s and exports
 `build_hybrid_system, reachability_analyze, check_flowpipe_safety,
-TelemetrySink`. `Project.toml` gains `ReachabilityAnalysis`,
-`HybridSystems`, and `Arrow` as regular `[deps]` + `[compat]` entries.
-`test/exports_test.jl` is extended to cover the four new exported
-names.
+TelemetrySink`. `Project.toml` gains `ReachabilityAnalysis` and `Arrow`
+as regular `[deps]` + `[compat]` entries — `HybridSystems.jl`'s
+automaton API (`GraphAutomaton`, `ConstrainedIdentityMap`,
+`AutonomousSwitching`, `HybridSystem`, `add_transition!`) and
+`LazySets.Zonotope` are both re-exported by `ReachabilityAnalysis`
+(confirmed directly against the installed package), so no separate
+`HybridSystems` dependency entry is needed; `LazySets` is already a
+Phase 2 dependency. `test/exports_test.jl` is extended to cover the
+four new exported names.
 
 ## Open questions / deferred items for a future phase
 
@@ -263,10 +324,18 @@ names.
   here only because an unflushed Arrow writer is a more surprising
   failure mode (silent data loss on process exit) than an unclosed
   GLMakie window.
-- Whether `HybridSystems.jl`'s automaton construction accepts
-  MTK-generated systems directly is genuinely unverified as of this
-  writing — Decision 1's fallback path is the documented contingency,
-  not a hypothetical.
+- Decision 1's hand-mirrored `@taylorize`d equations (duplicated from
+  `_ks_eqs`/`_st_eqs` rather than derived from them) are a genuine,
+  ongoing maintenance burden — see that decision's amendment for the
+  accepted cost and the cross-check test that guards against silent
+  divergence.
+- Decision 2's control-input state-augmentation technique holds
+  `a`/`δ̇` within their initial box for the whole analysis horizon,
+  rather than modeling them as independently time-varying within that
+  box at every instant — a real conservatism (over-approximation, not
+  under-approximation, so still sound for safety verification) worth
+  knowing about if a future caller is surprised by how wide the
+  resulting flowpipe is for a long `tspan`.
 - No online/runtime reachability monitor — noted in Non-goals; a
   future phase could wire `check_flowpipe_safety` (or a
   faster-to-recompute approximation of it) into `AsyncSim`'s physics
