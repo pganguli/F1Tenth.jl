@@ -19,6 +19,8 @@ jobs:
     permissions: # needed to allow julia-actions/cache to proactively delete old caches that it has created
       actions: write
       contents: read
+    env:
+      JULIA_NUM_THREADS: '4'
     strategy:
       fail-fast: false
       matrix:

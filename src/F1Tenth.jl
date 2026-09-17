@@ -25,6 +25,9 @@ export step_multi_agent!
 export to_lazysets
 export AbstractRenderer, NullRenderer, GLMakieRenderer, CairoMakieRenderer
 export init!, render!, close!, reset!
+export LatestChannel, put_latest!, take_latest!, wait_latest!
+export AsyncSim, start!, stop!
+export RenderBackpressure, DropLatest, Blocking, RendererEntry
 
 function __init__()
     __mtk_models_init__()

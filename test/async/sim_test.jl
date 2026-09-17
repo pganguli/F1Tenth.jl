@@ -167,3 +167,39 @@ if Threads.nthreads() >= 2
 else
     @warn "Skipping AsyncSim renderer-tier tests: needs Threads.nthreads() >= 2; got $(Threads.nthreads())"
 end
+
+if Threads.nthreads() >= 2
+    @testset "AsyncSim: a physics-tier exception propagates through stop! and halts renderers too" begin
+        setup = _async_test_setup()
+        fake = FakeRenderer()
+        sim = F1Tenth.AsyncSim(setup.bvh, setup.params, setup.car, 0.01, setup.cfg,
+            setup.states, setup.actions; renderers=[F1Tenth.RendererEntry(fake, F1Tenth.DropLatest())])
+
+        F1Tenth.start!(sim)
+        sleep(0.05)
+        pop!(sim.last_actions)  # corrupt internal state: fewer cached actions than agents
+        sleep(0.05)
+
+        @test_throws BoundsError F1Tenth.stop!(sim)
+        @test sim.running[] == false
+        @test sim.physics_task === nothing
+        @test isempty(sim.renderer_tasks)
+    end
+
+    @testset "AsyncSim: a renderer-tier exception propagates through stop! and halts physics too" begin
+        setup = _async_test_setup()
+        fake = FakeRenderer(; fail_on_call=2)
+        sim = F1Tenth.AsyncSim(setup.bvh, setup.params, setup.car, 0.01, setup.cfg,
+            setup.states, setup.actions; renderers=[F1Tenth.RendererEntry(fake, F1Tenth.Blocking())])
+
+        F1Tenth.start!(sim)
+        sleep(0.3)
+
+        @test_throws ErrorException F1Tenth.stop!(sim)
+        @test sim.running[] == false
+        @test sim.physics_task === nothing
+        @test isempty(sim.renderer_tasks)
+    end
+else
+    @warn "Skipping AsyncSim fault-injection tests: needs Threads.nthreads() >= 2; got $(Threads.nthreads())"
+end
