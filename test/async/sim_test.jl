@@ -137,6 +137,33 @@ if Threads.nthreads() >= 2
         @test all(a -> a == zero(F1Tenth.Action), sim.last_actions)
         @test isempty(fake.frames)
     end
+
+    @testset "AsyncSim: start! after stop!/reset! actually resumes ticking (regression)" begin
+        setup = _async_test_setup()
+        fake = FakeRenderer()
+        sim = F1Tenth.AsyncSim(setup.bvh, setup.params, setup.car, 0.01, setup.cfg,
+            setup.states, setup.actions; renderers=[F1Tenth.RendererEntry(fake, F1Tenth.DropLatest())])
+
+        F1Tenth.start!(sim)
+        sleep(0.1)
+        F1Tenth.stop!(sim)
+
+        moving_states = [F1Tenth.State(0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0)]
+        F1Tenth.reset!(sim, setup.track, moving_states)
+
+        F1Tenth.start!(sim)
+        local frame = missing
+        for _ in 1:200
+            frame = F1Tenth.take_latest!(sim.output)
+            frame === missing || break
+            sleep(0.01)
+        end
+        F1Tenth.stop!(sim)
+
+        @test frame !== missing
+        fresh_states, _, _ = frame
+        @test fresh_states[1][1] > moving_states[1][1]  # x advanced, i.e. physics genuinely resumed
+    end
 else
     @warn "Skipping AsyncSim renderer-tier tests: needs Threads.nthreads() >= 2; got $(Threads.nthreads())"
 end

@@ -5,7 +5,10 @@ const RenderFrame = Tuple{Vector{State},Vector{Vector{Float64}},Vector{Bool}}
 
 abstract type RenderBackpressure end
 struct DropLatest <: RenderBackpressure end
-struct Blocking <: RenderBackpressure end
+struct Blocking <: RenderBackpressure
+    buffer::Int
+end
+Blocking(; buffer::Int=8) = Blocking(buffer)
 
 struct RendererEntry
     renderer::AbstractRenderer
@@ -13,10 +16,11 @@ struct RendererEntry
     channel::Union{LatestChannel{RenderFrame},Channel{RenderFrame}}
 end
 
-RendererEntry(renderer::AbstractRenderer, ::DropLatest) =
-    RendererEntry(renderer, DropLatest(), LatestChannel{RenderFrame}())
-RendererEntry(renderer::AbstractRenderer, ::Blocking; buffer::Int=8) =
-    RendererEntry(renderer, Blocking(), Channel{RenderFrame}(buffer))
+_render_channel(::DropLatest) = LatestChannel{RenderFrame}()
+_render_channel(policy::Blocking) = Channel{RenderFrame}(policy.buffer)
+
+RendererEntry(renderer::AbstractRenderer, policy::RenderBackpressure) =
+    RendererEntry(renderer, policy, _render_channel(policy))
 
 mutable struct AsyncSim
     bvh::TrackBVH
@@ -140,6 +144,14 @@ function start!(sim::AsyncSim)
         "$(length(sim.renderers)) renderer thread(s)); got $(nthreads()). " *
         "Start Julia with `julia --threads=$required` or set JULIA_NUM_THREADS=$required.")
     sim.error[] = nothing
+    # A prior stop! permanently closed every channel (Julia Channels
+    # cannot reopen) -- rebuild them here so start! works both the
+    # first time and after a stop!/reset!/start! cycle. Harmless to do
+    # unconditionally on the very first call too: nothing is expected
+    # to have queued input before a sim has ever started.
+    sim.input = [LatestChannel{Action}() for _ in 1:length(sim.states)]
+    sim.output = LatestChannel{RenderFrame}()
+    sim.renderers = [RendererEntry(entry.renderer, entry.policy) for entry in sim.renderers]
     sim.running[] = true
     empty!(sim.renderer_tasks)
     for entry in sim.renderers
