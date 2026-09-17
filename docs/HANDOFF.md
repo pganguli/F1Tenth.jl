@@ -25,7 +25,10 @@ The full 5-phase blueprint (given once, not otherwise saved in the repo):
   Phase-5-facing export, not the core representation.)
 - **Phase 3 — Decoupled Abstract Renderer Engine.** `AbstractRenderer`
   with `NullRenderer`, `GLMakieRenderer`, `CairoMakieRenderer`
-  implementations. **Not started.**
+  implementations. **Done, merged to `main`.** (The original blueprint's
+  "package extensions to keep GLMakie/CairoMakie optional" plan was
+  revised mid-implementation — see below; both are regular dependencies
+  now, not weakdeps.)
 - **Phase 4 — Async Concurrency & Control Channels.** Multi-threaded
   sim loop, 3-tier `Channel` pipeline (input / physics / render). **Not
   started.**
@@ -43,12 +46,18 @@ project owner is invested in it — don't skip straight to code. Specs live
 in `docs/superpowers/specs/`, plans in `docs/superpowers/plans/`, each
 named `YYYY-MM-DD-<topic>-design.md` / `YYYY-MM-DD-<topic>.md`.
 
-Phase 1 and Phase 2's documents are the reference examples of the
-expected depth:
+Phase 1, Phase 2, and Phase 3's documents are the reference examples of
+the expected depth:
 - `docs/superpowers/specs/2026-09-16-phase1-core-dynamics-design.md` /
   `docs/superpowers/plans/2026-09-16-phase1-core-dynamics.md`
 - `docs/superpowers/specs/2026-09-16-phase2-geometry-raycasting-collision-design.md`
   / `docs/superpowers/plans/2026-09-16-phase2-geometry-raycasting-collision.md`
+- `docs/superpowers/specs/2026-09-16-phase3-renderer-engine-design.md` /
+  `docs/superpowers/plans/2026-09-16-phase3-renderer-engine.md` — also
+  the reference example for handling a **mid-execution architecture
+  pivot**: both documents carry an inline amendment (spec Decision 3,
+  plan header) recording why and how the package-extension approach was
+  abandoned partway through, rather than being silently rewritten.
 
 subagent-driven-development keeps a ledger at
 `.superpowers/sdd/<plan-basename>/progress.md` inside whatever worktree
@@ -301,12 +310,155 @@ vector track representation, a KD-tree, SAT, and segment intersection.
   `import LazySets`, but a future `using LazySets` elsewhere would
   collide.
 
+## Phase 3 — what actually got built
+
+Files: `src/render/{interface,glmakie,cairomakie}.jl`,
+`test/render/{testutils,null,glmakie,cairomakie}_test.jl`,
+`test/exports_test.jl` updated, `src/F1Tenth.jl` updated (includes +
+exports), `Project.toml` updated (`GLMakie`/`CairoMakie` as regular
+deps), `.github/workflows/CI.yml` updated (Xvfb step for headless
+GLMakie loading).
+
+The blueprint's original guess of "package extensions to keep
+GLMakie/CairoMakie optional for headless/training users" did not
+survive contact with Phase 1's `mtk_models.jl` — see Load-bearing fact
+1 below. `GLMakie`/`CairoMakie` ended up as unconditional regular
+dependencies instead; every `F1Tenth` user now installs and precompiles
+both, including ones who only ever construct a `NullRenderer`.
+
+- `interface.jl` — `AbstractRenderer` (abstract type); `init!`/
+  `render!`/`close!`/`reset!` (generic functions, no default methods);
+  `NullRenderer` (concrete, zero-field, all four methods unconditional
+  no-ops — always safe regardless of lifecycle state, unlike the other
+  two); empty constructor stubs `function GLMakieRenderer end` /
+  `function CairoMakieRenderer end`, given real methods by the other
+  two files.
+- `glmakie.jl` — `GLMakieRendererImpl <: AbstractRenderer` (private,
+  reached only via the `GLMakieRenderer` name). Builds a `Figure`/`Axis`
+  once and keeps every per-car body/trail/scan-ray/collision-color as a
+  Makie `Observable`, updated incrementally by `render!` — never a
+  full clear-and-redraw. `camera_mode` is `:fixed` (default, axis
+  limits set once from the track's bounding box) or `:follow`
+  (recenters on `states[ego_index]` every tick); both are validated at
+  construction. `render!` before `init!`/`reset!` throws
+  `ErrorException`.
+- `cairomakie.jl` — `CairoMakieRendererImpl <: AbstractRenderer`.
+  `render!` does no drawing at all — it only appends into history
+  buffers; `close!` does all the drawing, always emitting one summary
+  SVG (full trails, even with zero recorded ticks) and, if `output_dir`
+  was given at construction, one additional SVG per tick as a vector
+  "flip-book" replay.
+- Both real renderers take `car::CarFootprint` and `cfg::LiDARConfig`
+  once at construction (not per-`render!`-call) — `cfg` is needed
+  purely to reconstruct each beam's angle for drawing scan rays, since
+  `render!`'s `scans` argument carries only numeric ranges.
+
+### Load-bearing facts a fresh agent must not re-derive from scratch
+
+1. **No Julia package extension can ever depend on `F1Tenth`, full
+   stop — this is not a Phase-3-specific limitation.** Phase 1's
+   `mtk_models.jl` `__init__()` (`mtk_models.jl:116-121`) deliberately
+   `@eval`s new `const` bindings (`KS_RHS`/`ST_RHS`) directly into the
+   `F1Tenth` module on every load, to keep `step_dynamics`
+   zero-allocation (measured: the `Ref{Function}` alternative costs 224
+   bytes/call — see the comment at `mtk_models.jl:106-115`). Julia
+   disallows exactly that kind of eval-into-an-already-loaded-module
+   while precompiling *any* downstream package that depends on it —
+   extension or not. This was discovered mid-Task-2 (the original plan
+   made `GLMakieRenderer`/`CairoMakieRenderer` `[weakdeps]`), verified
+   against the actual source, escalated to the project owner rather
+   than worked around unilaterally, and resolved by dropping the
+   extension mechanism entirely (spec's amended Decision 3). If a
+   future phase wants to publish `F1Tenth` as a normal dependency other
+   packages can build on — not just extend — this `__init__` pattern
+   has to be reworked first (e.g. a concretely-typed callable wrapper,
+   `FunctionWrappers.jl`, or a properly `RuntimeGeneratedFunctions.jl`-
+   cached setup), while re-verifying the zero-allocation guarantee
+   holds. Flagged in the spec's Open Questions, not attempted here.
+2. **`GLMakieRenderer.init!` must call `GLMakie.activate!()` itself,
+   unconditionally, as its first line — do not remove this "redundant
+   looking" call.** Both `GLMakie` and `CairoMakie` call their own
+   `activate!()` in `__init__`, which sets Makie's single process-global
+   active backend. Because `cairomakie.jl` is `include`d after
+   `glmakie.jl` in `src/F1Tenth.jl`, a plain `using F1Tenth` leaves
+   CairoMakie as the active backend — so `GLMakieRenderer`'s live
+   window silently failed to open in production before this fix, even
+   though `GLMakieRenderer`'s own tests passed (the test file was
+   independently calling `GLMakie.activate!()` at file scope, an
+   environment production code never established). This was caught
+   only by the final whole-branch review, after each renderer's
+   per-task review passed in isolation — a textbook cross-task defect.
+   A regression test in `glmakie_test.jl` specifically forces
+   `CairoMakie.activate!()` before constructing a `GLMakieRenderer` and
+   asserts it still ends up on the GL backend; don't delete that test
+   either.
+3. **`GLMakieRendererImpl`'s per-car `Observable`s are created lazily
+   on the first `render!` call, not at `init!` time**, since agent
+   count isn't known until a tick actually arrives. They are never
+   grown afterward — if `length(states)` increases across `render!`
+   calls without an intervening `reset!`, this raises a `BoundsError`
+   rather than a clean guard. This is a documented contract (spec
+   Decision 1: agent count is fixed within an episode, between
+   `reset!` calls), not a bug, and `CairoMakieRendererImpl.close!`
+   makes the identical assumption (derives `n_cars` from tick 1's
+   state).
+4. **`GLMakieRendererImpl.close!` closes only its own `Screen`** (stored
+   in a `screen` field, captured from `display(renderer.fig)` in
+   `init!`), not `GLMakie.closeall()` — an earlier draft called the
+   process-wide `closeall()`, which would have torn down every other
+   open GLMakie window too. `close!` also resets `fig`/`screen` to
+   `nothing` and `initialized` to `false`, making it safe to call
+   twice.
+
+### Known deferred minors (not blocking, listed so you don't re-flag them)
+
+- `CairoMakieRendererImpl`'s history buffers (`history_states`/
+  `history_scans`/`history_collisions`) grow unboundedly with tick
+  count and retain every beam of every tick — fine for short recorded
+  runs, but a long episode with a wide LiDAR config could buffer
+  hundreds of MB before `close!` ever draws anything. The summary SVG
+  only actually needs the *last* tick's scan; full retention is only
+  required when `output_dir` is set. Flagged for whoever designs
+  Phase 4's loop (which owns tick counts and buffer-reuse decisions).
+- The exported names `init!`, `render!`, `close!`, `reset!` are
+  generic enough to collide with same-named exports from other
+  packages under `using F1Tenth, SomeOtherPkg` — not exercised by any
+  current test, worth a README note whenever Phase 3 gets
+  user-facing documentation.
+- `.github/workflows/CI.yml`'s Xvfb step (added because `using
+  F1Tenth` now unconditionally loads the GPU-adjacent `GLMakie`, even
+  in headless CI) backgrounds `Xvfb :99 &` with no explicit readiness
+  wait before later steps rely on `DISPLAY` — a plausible but
+  low-probability flake source, untested against a real GitHub Actions
+  run as of this writing.
+- `glmakie.jl`'s `_plot_glmakie_track!`/`_glmakie_track_bounds` and
+  `cairomakie.jl`'s `_plot_cairomakie_track!` duplicate near-identical
+  track-boundary-plotting logic under different names — deliberate,
+  since both files `include` into the same `F1Tenth` module namespace
+  and the plan's namespacing rationale prefers explicit duplication
+  over a shared helper for two ~10-line functions.
+- `test/exports_test.jl` (same pre-existing gap noted in Phase 2's
+  section above, now also covering Phase 3's 8 new names) checks
+  `isdefined(F1Tenth, name)` rather than `Base.isexported(F1Tenth,
+  name)` — still doesn't catch a silently-dropped `export` statement.
+- `test/render/testutils.jl` is `include`d separately by three test
+  files (`null_test.jl`, `glmakie_test.jl`, `cairomakie_test.jl`),
+  producing a harmless "Method definition overwritten" warning during
+  test runs — same cosmetic pattern already noted for Phase 2's
+  `_square_room_bvh` helper.
+
 ## Where to go next
 
-Phase 3 (Decoupled Abstract Renderer Engine) hasn't been brainstormed
-yet. Start there with `superpowers:brainstorming` — it'll need its own
-design conversation (what `AbstractRenderer`/`NullRenderer`/
-`GLMakieRenderer`/`CairoMakieRenderer` actually need to draw given
-Phase 2's `Track`/`Segment` geometry and `State`/scan data, how a
-renderer consumes `step_multi_agent!`'s per-tick output without coupling
-to Phase 4's not-yet-designed concurrency model).
+Phase 4 (Async Concurrency & Control Channels) hasn't been
+brainstormed yet. Start there with `superpowers:brainstorming` — it
+inherits one explicitly open question from Phase 3: `render!` is
+currently called synchronously, once per tick, by whatever loop calls
+it (spec's Non-goals and Open Questions sections say so explicitly).
+Phase 4 needs to decide which thread/tier of its 3-tier `Channel`
+pipeline (input / physics / render) owns rendering, and whether render
+calls can be dropped or coalesced under backpressure — none of that is
+decided yet. Phase 4 will also inherit Phase 3's "every `F1Tenth` user
+installs GLMakie+CairoMakie unconditionally" cost (load-bearing fact 1
+above); if that tradeoff becomes painful at Phase 4's concurrency
+scale, revisiting Phase 1's `__init__` pattern to make package
+extensions viable again is the documented escape hatch.
