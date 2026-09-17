@@ -12,6 +12,7 @@ include("geometry/step2.jl")
 include("geometry/lazysets_export.jl")
 include("render/interface.jl")
 include("render/glmakie.jl")
+include("render/cairomakie.jl")
 
 export VehicleParams, State, Action, step_dynamics, simulate, KS_MODE, ST_MODE
 export Track, Segment, build_track, load_track
