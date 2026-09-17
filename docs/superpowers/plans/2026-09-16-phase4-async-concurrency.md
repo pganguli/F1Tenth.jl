@@ -28,6 +28,78 @@ re-surfaced by `stop!` to the caller.
 dep). No new `Project.toml` dependencies — everything Phase 4 needs is
 either already a dependency or part of Base/stdlib.
 
+> **Amendment 4 (post-final-review, after all 4 tasks passed their own
+> reviews):** The final whole-branch review found one Critical and
+> several Important cross-task issues that no single task's diff could
+> reveal, since each depends on how a *later* task's code actually
+> uses an *earlier* task's primitive:
+>
+> - **Critical — `put_latest!` still races `wait_latest!`.** Task 1's
+>   fix closed the `put_latest!`/`take_latest!` race with a custom
+>   `lc.lock`, reasoned to be safe for `wait_latest!` on the grounds
+>   that a `put!` on an empty `Channel` with a pending `take!` waiter
+>   is a non-blocking handoff. That reasoning only covers
+>   `put_latest!`'s `put!` call, not its internal `take!` (the drain of
+>   a stale value): if `wait_latest!`'s bare `take!` claims the pending
+>   value in the window between `put_latest!`'s `isready` check and its
+>   own `take!`, `put_latest!`'s `take!` blocks forever on a now-empty
+>   channel — while holding `lc.lock`. Task 3 introduced exactly this
+>   pairing on every `DropLatest` renderer channel (physics tier's
+>   `put_latest!` vs. that renderer's `wait_latest!`), which didn't
+>   exist when Task 1 was reviewed. Reproduced empirically against the
+>   shipped code. Fix: drop the custom `lc.lock` field entirely and use
+>   `Channel`'s own built-in lock (`lock(lc.ch) do ... end`, a
+>   `ReentrantLock` Julia already associates with every `Channel`) for
+>   `put_latest!`'s and `take_latest!`'s compound check-then-act — a
+>   concurrent `wait_latest!`'s `take!` call acquires that same lock
+>   internally, so it's now properly excluded too.
+> - **Important — `start!`/`reset!` only guard on `running[]`, not on
+>   whether the previous tiers have actually finished unwinding.** A
+>   failing tier sets `running[] = false` before it (and any other
+>   tier) has returned from its `catch` block. `start!` (or `reset!`)
+>   called in that window passes the guard while an old task is still
+>   live, discarding a real recorded error and risking two physics
+>   tasks touching `sim.states` at once. Fix: guard on task quiescence
+>   (`sim.physics_task === nothing && isempty(sim.renderer_tasks)`)
+>   instead of `running[]` — `stop!` is the only thing that nulls those
+>   fields, so this is a strictly stronger check.
+> - **Important — actions pushed to `sim.input` before the first
+>   `start!` are silently discarded.** `start!` unconditionally rebuilds
+>   every channel, including ones nothing has closed yet. Fix: rebuild
+>   a channel only if it's actually closed (`isopen(...) ? existing :
+>   fresh`), for input, output, and every renderer entry.
+> - **Important — `AsyncSim`'s usage contract lives only in the plan
+>   and spec, not in the code.** Fix: add a comment block above
+>   `mutable struct AsyncSim` in `src/async/sim.jl` stating: `start!`/
+>   `stop!`/`reset!` must be called from a single owning thread/task;
+>   `start!` invalidates every previously-obtained channel reference,
+>   so a caller must push to `sim.input[i]` only *after* `start!`
+>   returns (matching the Task-3 amendment's corrected wording above);
+>   `stop!` rethrows whatever exception, if any, a tier recorded; and
+>   an external `put_latest!`/`take_latest!` call can raise
+>   `InvalidStateException` once a tier has failed or after `stop!`.
+> - **Important — two test skip guards check `Threads.nthreads() >= 2`
+>   but the testsets they gate all attach a renderer, so they actually
+>   need `>= 3`** (`_required_threads` includes the renderer). Fix:
+>   correct both guards to `>= 3`.
+> - **Flake fix, same underlying non-atomicity as the Critical above,
+>   benign guise:** Task 2's "tick_hz real-time mode runs without
+>   error" test reads `sim.output` *after* `stop!`, so if `stop!`
+>   closes channels inside `put_latest!`'s drain-then-put window, the
+>   last frame before shutdown can be lost and the read comes back
+>   `missing` — this reproduces the one flaky failure noted during
+>   Task 3/4. Fix: capture the frame *before* `stop!`, using the same
+>   poll-with-timeout loop the lifecycle test in Task 2 already uses.
+>
+> All six are implementation fixes within already-reviewed files; none
+> change the public behavior the spec describes. Minor findings from
+> the final review (a `tick_hz` catch-up-burst edge case, a confusing
+> thread-count error message, a narrow `stop!` catch-all, an untested
+> zero-agent/fail-on-first-call path, and a spec-wording note about
+> `reset!`'s zero-action default) are deliberately deferred as
+> follow-up work, not fixed here — see the final review's Deferred
+> Findings Triage in the SDD ledger for the reasoning on each.
+
 **Spec:** `docs/superpowers/specs/2026-09-16-phase4-async-concurrency-design.md`
 
 ## Global Constraints
