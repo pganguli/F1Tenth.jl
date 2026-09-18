@@ -51,7 +51,7 @@ function _st_taylor_expr(fname::Symbol, params::VehicleParams)
     h = params.h
     m = params.m
     Iz = params.Iᶻ
-    g = 9.81
+    g = _MTK_G  # reuse mtk_models.jl's gravity constant rather than a second hardcoded copy
     return quote
         @taylorize function $(fname)(du, u, p, t)
             x, y, δ, v, ψ, ψ̇, β, a, δ̇ = u[1], u[2], u[3], u[4], u[5], u[6], u[7], u[8], u[9]
@@ -83,12 +83,36 @@ function _st_taylor_expr(fname::Symbol, params::VehicleParams)
     end
 end
 
+# NOTE on repeated eval: `_build_mode` (via `build_hybrid_system`) `gensym`s
+# and `Core.eval`s a brand-new `@taylorize`d function into this module on
+# every call, permanently retaining a uniquely-named global function each
+# time. This is intentionally uncached: `build_hybrid_system` is an offline,
+# standalone reachability-analysis entry point per the spec's
+# Decision/Non-goals -- it is explicitly NOT wired into `AsyncSim`'s
+# per-tick loop (out of scope for this phase) -- so it is expected to be
+# called once, or a handful of times, per offline analysis session rather
+# than in a hot loop. If a future phase calls this in a loop or performance
+# becomes a concern, memoizing the built `HybridSystem` on `params` (e.g.
+# via a `Dict`) would be a straightforward fix at that point.
 function _build_mode(fname::Symbol, taylor_expr::Expr, invariant, dim::Int)
     Core.eval(@__MODULE__, taylor_expr)
     sys_expr = :(@system(u' = $(fname)(u), dim: $dim, u ∈ $invariant))
     return Core.eval(@__MODULE__, sys_expr)
 end
 
+"""
+    build_hybrid_system(params::VehicleParams) -> ReachabilityAnalysis.HybridSystem
+
+Build a 2-location hybrid automaton over the 9-D augmented state
+`(x, y, δ, v, ψ, ψ̇, β, a, δ̇)`, switching on the longitudinal velocity `v`
+(index 4) at the KS/ST threshold `v = 0.5`:
+
+- location `1` = `:ks` (kinematic single-track, active for `v <= 0.5`)
+- location `2` = `:st` (dynamic single-track, active for `v >= 0.5`)
+
+`a`/`δ̇` are carried as extra zero-derivative dimensions (state-augmented
+control inputs); see the `_AUGMENTED_DIM` comment above for why.
+"""
 function build_hybrid_system(params::VehicleParams)
     ks_name = gensym(:phase5_ks)
     st_name = gensym(:phase5_st)
