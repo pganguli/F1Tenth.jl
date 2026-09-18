@@ -3,6 +3,8 @@ using Arrow
 using StaticArrays
 using Test
 
+include(joinpath(@__DIR__, "..", "async", "testutils.jl"))
+
 function _small_test_track()
     n = 8
     R = 5.0
@@ -54,4 +56,33 @@ end
         F1Tenth.close!(sink)
         @test true
     end
+end
+
+if Threads.nthreads() >= 3
+    @testset "TelemetrySink: attaches to a real AsyncSim end-to-end" begin
+        setup = _async_test_setup()
+        mktempdir() do dir
+            path = joinpath(dir, "async_telemetry.arrow")
+            sink = F1Tenth.TelemetrySink(path)
+            # Per TelemetrySink's docstring: callers must call init! themselves
+            # before attaching it to an AsyncSim -- the constructor alone does
+            # not open the underlying Arrow writer.
+            F1Tenth.init!(sink, setup.track)
+
+            moving_states = [F1Tenth.State(0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0)]
+            sim = F1Tenth.AsyncSim(setup.bvh, setup.params, setup.car, 0.01, setup.cfg,
+                moving_states, setup.actions;
+                renderers=[F1Tenth.RendererEntry(sink, F1Tenth.DropLatest())])
+
+            F1Tenth.start!(sim)
+            sleep(1.0)
+            F1Tenth.stop!(sim)
+            F1Tenth.close!(sink)
+
+            tbl = Arrow.Table(path)
+            @test length(tbl.tick_index) > 0
+        end
+    end
+else
+    @warn "Skipping TelemetrySink/AsyncSim attachment test: needs Threads.nthreads() >= 3; got $(Threads.nthreads())"
 end

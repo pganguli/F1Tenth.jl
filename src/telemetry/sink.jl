@@ -1,5 +1,21 @@
 using Arrow
 
+"""
+    TelemetrySink(path::String) <: AbstractRenderer
+
+An Arrow-backed telemetry sink: each `render!` call appends one row per
+agent to an Arrow IPC stream file at `path`.
+
+Unlike `GLMakieRenderer`/`CairoMakieRenderer`, whose constructors take a
+`track` and call `init!` eagerly, `TelemetrySink(path)` alone does NOT open
+the underlying Arrow writer -- `initialized` starts `false`. Callers MUST
+call `init!(sink, track)` themselves before attaching the sink to an
+`AsyncSim` (e.g. via `RendererEntry(sink, ...)`) and calling `start!`. If
+`init!` is skipped, the first `render!` call throws an `ErrorException`,
+which -- once attached to an `AsyncSim` -- propagates and tears down the
+whole sim (physics tier included). See `test/telemetry/sink_test.jl` for an
+end-to-end example of the required `init!`-then-attach sequence.
+"""
 mutable struct TelemetrySink <: AbstractRenderer
     path::String
     writer::Union{Nothing,Arrow.Writer}
