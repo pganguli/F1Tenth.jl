@@ -20,5 +20,6 @@ using Test
     include("reachability/hybrid_system_test.jl")
     include("reachability/analyze_test.jl")
     include("reachability/safety_check_test.jl")
+    include("telemetry/sink_test.jl")
     include("exports_test.jl")
 end
