@@ -40,3 +40,22 @@ end
     @test !safe
     @test !isempty(violating)
 end
+
+@testset "check_flowpipe_safety: empty flowpipe throws ArgumentError" begin
+    track = _straight_test_track()
+    fake_sol = (F=[],)
+    @test_throws ArgumentError F1Tenth.check_flowpipe_safety(fake_sol, track)
+end
+
+@testset "check_flowpipe_safety: empty track corridor throws ArgumentError" begin
+    params = F1Tenth.VehicleParams()
+    hs = F1Tenth.build_hybrid_system(params)
+
+    initial_set = Zonotope([5.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0], 0.01 * Matrix{Float64}(I, 7, 7))
+    input_set = Zonotope([0.0, 0.0], 0.01 * Matrix{Float64}(I, 2, 2))
+    sol = F1Tenth.reachability_analyze(hs, initial_set, input_set, (0.0, 0.05);
+        alg=TMJets(abstol=1e-10, orderT=5, orderQ=1))
+
+    empty_track = F1Tenth.build_track(SVector{2,Float64}[], Float64[], Float64[])
+    @test_throws ArgumentError F1Tenth.check_flowpipe_safety(sol, empty_track)
+end
