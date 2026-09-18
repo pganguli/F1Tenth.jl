@@ -17,6 +17,7 @@ include("async/latest_channel.jl")
 include("async/sim.jl")
 include("reachability/hybrid_system.jl")
 include("reachability/analyze.jl")
+include("reachability/safety_check.jl")
 
 export VehicleParams, State, Action, step_dynamics, simulate, KS_MODE, ST_MODE
 export reachability_analyze, build_hybrid_system

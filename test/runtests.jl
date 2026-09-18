@@ -19,5 +19,6 @@ using Test
     include("async/sim_test.jl")
     include("reachability/hybrid_system_test.jl")
     include("reachability/analyze_test.jl")
+    include("reachability/safety_check_test.jl")
     include("exports_test.jl")
 end
