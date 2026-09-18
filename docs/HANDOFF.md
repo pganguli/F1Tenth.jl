@@ -35,7 +35,14 @@ The full 5-phase blueprint (given once, not otherwise saved in the repo):
   kinds — physics and render — not three; see below.)
 - **Phase 5 — Reachability Analysis & Telemetry Export.**
   `ReachabilityAnalysis.jl` hybrid-system reachability over the Phase 1
-  dynamics, `Arrow.jl` telemetry logging. **Not started.**
+  dynamics, `Arrow.jl` telemetry logging. **Done, merged to `main`.**
+  (The original blueprint's Approach A — driving `ReachabilityAnalysis.jl`
+  directly off Phase 1's `ModelingToolkit`-generated `KS_RHS`/`ST_RHS` —
+  turned out to be infeasible mid-brainstorming: `@taylorize` macroexpands
+  function *source*, and `KS_RHS`/`ST_RHS` are runtime-`@eval`'d from a
+  `build_function` `Expr` with no source form. Revised to Approach C:
+  hand-mirrored `@taylorize` equations, cross-checked against `KS_RHS`/
+  `ST_RHS` at sample points to catch silent divergence — see below.)
 
 ## Process this project follows
 
@@ -571,20 +578,121 @@ three.
   (used by most tests in the file) is the more robust one if any of
   these start flaking.
 
+## Phase 5 — what actually got built
+
+Files: `src/reachability/{hybrid_system,analyze,safety_check}.jl`,
+`src/telemetry/sink.jl`,
+`test/reachability/{hybrid_system,analyze,safety_check}_test.jl`,
+`test/telemetry/sink_test.jl`, `test/exports_test.jl` updated,
+`src/F1Tenth.jl` updated (includes + exports), `Project.toml` updated
+(`ReachabilityAnalysis`, `Arrow` added; `LazySets` compat loosened from
+`"7.1.0"` to `"7"` — see load-bearing fact 3 below).
+
+- `build_hybrid_system(params::VehicleParams) -> HybridSystem` — a
+  2-location automaton over a 9-D augmented state
+  `(x, y, δ, v, ψ, ψ̇, β, a, δ̇)` (`a`/`δ̇`, Phase 1's control inputs,
+  appended as zero-derivative dimensions since `TMJets` has no
+  time-varying input channel). Location `1` = `:ks` (`v <= 0.5`),
+  location `2` = `:st` (`v >= 0.5`), matching Phase 1's own KS/ST
+  switching threshold.
+- `reachability_analyze(hs, initial_set::Zonotope, input_set::Zonotope,
+  tspan; alg=TMJets()) -> sol` — selects the starting location from
+  `initial_set`'s `v`-bounds, Cartesian-products with `input_set` to the
+  augmented state, and solves.
+- `check_flowpipe_safety(sol, track::Track) -> (safe::Bool,
+  violating_indices::Vector{Int})` — overapproximates each flowpipe
+  reach-set as a `Hyperrectangle`, slices to `(x,y)`, and checks
+  containment in `UnionSetArray(to_lazysets(track))`. Throws
+  `ArgumentError` on an empty `sol.F` or empty track corridor rather
+  than returning a vacuous `(true, [])`.
+- `TelemetrySink <: AbstractRenderer` — Arrow-backed `init!`/`render!`/
+  `close!`/`reset!` implementation logging tick/episode/agent
+  state/scan/collision rows. Unlike `GLMakieRenderer`/`CairoMakieRenderer`,
+  its constructor does **not** self-`init!` — see load-bearing fact 4.
+
+### Load-bearing facts a fresh agent must not re-derive from scratch
+
+1. **The KS mode's `du[6]` (ψ̈) is *not* zero, unlike `KS_RHS`'s own
+   equations.** `_ks_taylor_expr` in `hybrid_system.jl` mirrors
+   `mtk_models.jl`'s `_ks_eqs` for every other term, but `du[6]`
+   deliberately computes `step.jl`'s corrected KS ψ̈ fallback
+   (`a/(lf+lr)*tan(δ) + v/((lf+lr)*cos(δ)^2)*δ̇`), not `KS_RHS`'s zeroed
+   simplification — because a flowpipe that starts in `:ks` and
+   transitions into `:st` carries this state across the reset map, and
+   `:st`'s equations are not indifferent to a stale/frozen ψ̇. This was
+   only caught by the final whole-branch review (it requires comparing
+   against `step.jl`, outside any single task's own diff) — don't
+   "simplify" this back to match `KS_RHS` literally.
+2. **`build_hybrid_system` dynamically `gensym`s + `Core.eval`s a fresh
+   `@taylorize`d function into the module on every call, with no
+   caching.** Accepted by design: this is an offline, standalone
+   reachability-analysis entry point, not wired into `AsyncSim`'s
+   per-tick loop, and is expected to be called once or a handful of
+   times per analysis session. If a future phase calls it in a loop,
+   memoize the built `HybridSystem` on `params`.
+3. **The `LazySets = "7.1.0"` → `"7"` compat loosening (resolves to
+   7.0.1) was required to unblock `ReachabilityAnalysis`'s dependency
+   tree, not a regression.** An apparent `OrderedCollections`/`Parameters`
+   conflict against the whole Phase 1-4 stack turned out to be a
+   stale-`Manifest.toml` resolver artifact, not real; the actual
+   blocker was this project's own overly-narrow `LazySets` pin. Verified
+   zero impact on `ModelingToolkit`/`DifferentialEquations`/`Symbolics`/
+   `CairoMakie`/`GLMakie`. **A stale, gitignored `Manifest.toml` can
+   reproduce this exact false conflict on a fresh checkout** — if
+   `Pkg.resolve()` ever reports an unsatisfiable `Parameters`/
+   `OrderedCollections`/`ReachabilityAnalysis` requirement, delete
+   `Manifest.toml` and re-resolve before assuming a real regression.
+4. **`TelemetrySink(path)` does not self-`init!`, unlike every other
+   renderer.** `GLMakieRenderer`/`CairoMakieRenderer` take a `track` in
+   their constructor and call `init!` eagerly; `TelemetrySink` takes no
+   track, so a caller must explicitly call `init!(sink, track)` before
+   attaching it to an `AsyncSim` (e.g. via `RendererEntry`) — otherwise
+   the first `render!` throws `ErrorException` and tears down the whole
+   sim (fail-fast tier contract, Phase 4). This is documented on the
+   struct's docstring and covered by an end-to-end test in
+   `sink_test.jl`, but is easy to miss if you're pattern-matching off
+   the Makie renderers' usage instead of reading the docstring.
+5. **The hand-mirrored `@taylorize` equations in `hybrid_system.jl` are
+   an intentional, spec-accepted duplication of `mtk_models.jl`'s
+   `_ks_eqs`/`_st_eqs`, not a DRY violation to "fix."**
+   `ReachabilityAnalysis.jl`'s `@taylorize` macroexpands function
+   *source*; `KS_RHS`/`ST_RHS` are runtime-`@eval`'d from a
+   `build_function`-generated `Expr` with no source form — there is no
+   way to make `@taylorize` operate on them directly. The real
+   maintenance cost (equations drifting apart on a future edit) is
+   caught by dedicated tests cross-checking both mirrors against
+   `KS_RHS`/`ST_RHS` at sample points, not by structural sharing.
+
+### Known deferred minors (not blocking, listed so you don't re-flag them)
+
+- **Actuator saturation is not modeled in the reachability equations.**
+  `dynamics_rhs` passes actions through `steering_constraint`/
+  `accl_constraint` before use; `reachability_analyze`'s `input_set`
+  is not checked against `params`' actuator limits, and state
+  augmentation holds `a`/`δ̇` constant over the whole analysis horizon
+  rather than letting them vary and saturate as the simulator would. A
+  `check_flowpipe_safety` "safe" verdict certifies the analyzed system,
+  which is a superset of some trajectories but not a strict superset of
+  everything the simulator can produce under saturation. A real design
+  question for a follow-up phase, not a bug in what's implemented.
+- `reachability_analyze` does not validate `initial_set`/`input_set`
+  dimensions (7-D / 2-D respectively) before indexing into them — a
+  caller passing an already-9-D set gets a confusing failure deep
+  inside `solve` rather than a clear `ArgumentError`.
+- `check_flowpipe_safety`'s `violating_indices` are a flat counter over
+  every reach-set across every flowpipe in `sol.F` — after a mode jump,
+  an index doesn't identify which flowpipe or what time it belongs to.
+- `TelemetrySink.init!` doesn't guard against being called twice: it
+  overwrites `sink.writer` without closing the old one, and
+  `open(Arrow.Writer, path)` silently truncates any existing file at
+  that path.
+
 ## Where to go next
 
-Phase 5 (Reachability Analysis & Telemetry Export) hasn't been
-brainstormed yet. Start there with `superpowers:brainstorming`.
-`AsyncSim`'s `output::LatestChannel` (physics tier's per-tick
-`(states, scans, collisions)`) is a natural attachment point for an
-`Arrow.jl` telemetry sink — a consumer just needs to `take_latest!` or
-`wait_latest!` it like any other reader. For the reachability side,
-recall Phase 1's `KS_MODE`/`ST_MODE` (not `dynamics_rhs`) are the
-correct building blocks for a `HybridSystem` — see Phase 1's
-load-bearing fact 1 above — and Phase 2's `to_lazysets` already exports
-track geometry as `LazySets.VPolygon`s for guards/invariants, with the
-self-intersecting-quad caveat noted in Phase 2's load-bearing fact 5.
-Phase 4 leaves no new open questions of its own; the "every `F1Tenth`
-user installs GLMakie+CairoMakie unconditionally" cost from Phase 3
-(load-bearing fact 1 in that section) is unchanged and still the
-documented escape hatch if it becomes painful.
+All 5 phases of the original blueprint are now done and merged to
+`main`. There is no Phase 6 in the blueprint as given; the deferred
+minors above (actuator saturation modeling in particular) are the most
+likely seeds for a follow-up phase if one gets scoped. `AsyncSim`'s
+`output::LatestChannel` remains the natural attachment point for any
+future telemetry/analysis consumer beyond `TelemetrySink` — a reader
+just needs to `take_latest!`/`wait_latest!` it like any other.
