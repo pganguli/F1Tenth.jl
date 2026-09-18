@@ -15,8 +15,10 @@ using Test
         :LatestChannel, :put_latest!, :take_latest!, :wait_latest!,
         :AsyncSim, :start!, :stop!,
         :RenderBackpressure, :DropLatest, :Blocking, :RendererEntry,
+        :build_hybrid_system, :reachability_analyze, :check_flowpipe_safety,
+        :TelemetrySink,
     ]
     for name in exported_names
-        @test isdefined(F1Tenth, name)
+        @test name in names(F1Tenth)
     end
 end

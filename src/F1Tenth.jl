@@ -15,6 +15,10 @@ include("render/glmakie.jl")
 include("render/cairomakie.jl")
 include("async/latest_channel.jl")
 include("async/sim.jl")
+include("reachability/hybrid_system.jl")
+include("reachability/analyze.jl")
+include("reachability/safety_check.jl")
+include("telemetry/sink.jl")
 
 export VehicleParams, State, Action, step_dynamics, simulate, KS_MODE, ST_MODE
 export Track, Segment, build_track, load_track
@@ -28,6 +32,8 @@ export init!, render!, close!, reset!
 export LatestChannel, put_latest!, take_latest!, wait_latest!
 export AsyncSim, start!, stop!
 export RenderBackpressure, DropLatest, Blocking, RendererEntry
+export build_hybrid_system, reachability_analyze, check_flowpipe_safety
+export TelemetrySink
 
 function __init__()
     __mtk_models_init__()
