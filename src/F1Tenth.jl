@@ -16,8 +16,10 @@ include("render/cairomakie.jl")
 include("async/latest_channel.jl")
 include("async/sim.jl")
 include("reachability/hybrid_system.jl")
+include("reachability/analyze.jl")
 
 export VehicleParams, State, Action, step_dynamics, simulate, KS_MODE, ST_MODE
+export reachability_analyze, build_hybrid_system
 export Track, Segment, build_track, load_track
 export TrackBVH, build_bvh
 export LiDARConfig, CarFootprint, car_vertices, cast_ray, scan

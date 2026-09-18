@@ -18,5 +18,6 @@ using Test
     include("async/latest_channel_test.jl")
     include("async/sim_test.jl")
     include("reachability/hybrid_system_test.jl")
+    include("reachability/analyze_test.jl")
     include("exports_test.jl")
 end
