@@ -21,7 +21,6 @@ include("reachability/safety_check.jl")
 include("telemetry/sink.jl")
 
 export VehicleParams, State, Action, step_dynamics, simulate, KS_MODE, ST_MODE
-export reachability_analyze, build_hybrid_system
 export Track, Segment, build_track, load_track
 export TrackBVH, build_bvh
 export LiDARConfig, CarFootprint, car_vertices, cast_ray, scan
@@ -33,6 +32,8 @@ export init!, render!, close!, reset!
 export LatestChannel, put_latest!, take_latest!, wait_latest!
 export AsyncSim, start!, stop!
 export RenderBackpressure, DropLatest, Blocking, RendererEntry
+export build_hybrid_system, reachability_analyze, check_flowpipe_safety
+export TelemetrySink
 
 function __init__()
     __mtk_models_init__()
