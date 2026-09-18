@@ -33,7 +33,12 @@ function _ks_taylor_expr(fname::Symbol, params::VehicleParams)
             du[3] = δ̇
             du[4] = a
             du[5] = v / ($lf + $lr) * tan(δ)
-            du[6] = zero(v)
+            # Matches step.jl's corrected KS ψ̈ term (dynamics_rhs's fallback
+            # branch), NOT KS_RHS's own zeroed simplification -- see the
+            # Fix 1 discussion above: a flowpipe that starts in :ks and
+            # transitions into :st must not carry a frozen, stale ψ̇, since
+            # ψ̇ is a live state in :st (feeds its du[6]/du[7]).
+            du[6] = a / ($lf + $lr) * tan(δ) + v / (($lf + $lr) * cos(δ)^2) * δ̇
             du[7] = zero(v)
             du[8] = zero(v)
             du[9] = zero(v)

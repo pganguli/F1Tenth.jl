@@ -27,7 +27,9 @@ end
     ks_expected = F1Tenth.KS_RHS(state, p)
 
     @test du[1:5] ≈ collect(ks_expected[1:5]) atol=1e-10
-    @test du[6] == 0.0
+    lf, lr = params.lᶠ, params.lʳ
+    expected_psidd = u[8] / (lf + lr) * tan(u[3]) + u[4] / ((lf + lr) * cos(u[3])^2) * u[9]
+    @test du[6] ≈ expected_psidd atol=1e-10
     @test du[7] == 0.0
     @test du[8] == 0.0
     @test du[9] == 0.0
