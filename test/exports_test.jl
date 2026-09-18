@@ -19,6 +19,6 @@ using Test
         :TelemetrySink,
     ]
     for name in exported_names
-        @test isdefined(F1Tenth, name)
+        @test name in names(F1Tenth)
     end
 end
