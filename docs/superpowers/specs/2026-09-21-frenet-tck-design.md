@@ -209,3 +209,22 @@ until then a Julia-side test fixture generator exercises the same path.
   self-distance at load and warns.
 - **CSV format** is defined here, not yet by `tck.py`; must be confirmed
   against the owner's converter before implementation.
+
+## Implementation-time amendments
+
+Found while prototyping and verifying against real data; the plan
+(`docs/superpowers/plans/2026-09-21-frenet-tck.md`) carries the details.
+
+1. CSV padding: periodic `splprep` returns `len(c) = len(t) − k − 1`; the
+   writer pads to `len(t)`, the loader ignores the padding.
+2. The Cartesian `step_dynamics` is renamed `step_dynamics_cartesian`; the
+   Frenet step takes the public name `step_dynamics(𝐱, action, params, track, dt)`.
+3. The car-car Frenet pre-filter is dropped (not provably safe on curves).
+4. `to_frenet` never throws (table-scan retry, then last iterate).
+5. Validation is pointwise `max |κ|·w < 0.9` with a located error message.
+6. No knot-span hint; binary search meets the LiDAR gate (3.3 ms measured).
+7. The load-time fold-over warning (sections closer than a corridor width)
+   is not implemented; listed as a deferred minor.
+8. Austin, as converted by the current `tck.py`, fails validation
+   (`|κ|·w` up to 1.42 over ~1% of the lap). Strict rejection was chosen; the
+   map must be re-fit.
