@@ -102,7 +102,10 @@ parallel yourself.
 - Python keeps the map and renderer in class attributes shared by every env
   in a process; here each env has its own.
 - The render window uses GLMakie instead of pyglet: callbacks draw on
-  `renderer.axis` instead of adding to `batch`.
+  `renderer.axis` instead of adding to `batch`. It keeps pixels square (a
+  camera area that doesn't match the window's shape is widened, not
+  stretched) and scales up on HiDPI monitors; set
+  `GLMakie.activate!(scalefactor=...)` to override.
 - The f1tenth_racetracks maps load by name (Python has no equivalent).
 
 Python's quirks are kept where they change outputs: `obs.ego_idx` is always

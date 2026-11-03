@@ -25,11 +25,12 @@
     # let the window manager finish resizing the window (handled on GLMakie's
     # render task) before checking the camera
     area() = GLMakie.widths(GLMakie.events(r.figure).window_area[])
-    for _ in 1:40
-        sleep(0.05)
+    stable = 0
+    for _ in 1:100   # up to 5 s; done once the size has held for 0.3 s
         last = area()
         sleep(0.05)
-        area() == last == (r.width, r.height) && break
+        stable = area() == last == (r.width, r.height) ? stable + 1 : 0
+        stable >= 6 && break
     end
     @test r isa EnvRenderer
     @test calls[] == 6
