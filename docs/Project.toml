@@ -1,0 +1,9 @@
+[deps]
+Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
+F1Tenth = "ec9dc3f2-e932-4b18-a493-a4686694dcbe"
+
+[sources]
+F1Tenth = {path = ".."}
+
+[compat]
+Documenter = "1"
