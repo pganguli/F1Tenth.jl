@@ -28,7 +28,9 @@ end
 
 function F1Tenth._make_renderer(width::Int, height::Int)
     fig = Figure(; size=(width, height), backgroundcolor=BG_COLOR, figure_padding=0)
-    ax = Axis(fig[1, 1]; backgroundcolor=BG_COLOR)
+    # autolimitaspect: keep pixels square, widening a camera area that doesn't
+    # match the window's shape instead of stretching it (Python stretches)
+    ax = Axis(fig[1, 1]; backgroundcolor=BG_COLOR, autolimitaspect=1)
     hidedecorations!(ax)
     hidespines!(ax)
     foreach(name -> deregister_interaction!(ax, name), collect(keys(interactions(ax))))
@@ -42,7 +44,8 @@ function F1Tenth._make_renderer(width::Int, height::Int)
     text!(fig.scene, Point2f(8, 8); text=st.fps_text, space=:pixel, fontsize=24, color=RGBAf(1, 1, 1, 0.5),
         align=(:left, :bottom))
 
-    screen = GLMakie.Screen(; title="F1Tenth Gym", vsync=false, framerate=1000.0, focus_on_show=false)
+    screen = GLMakie.Screen(; title="F1Tenth Gym", vsync=false, framerate=1000.0, focus_on_show=false,
+        scalefactor=_scalefactor())
     display(screen, fig)
     r = EnvRenderer(width, height, -width / 2, width / 2, -height / 2, height / 2, 1.2, width, height, label, 1,
         nothing, Any[], fig, ax, screen, st)
@@ -51,6 +54,21 @@ function F1Tenth._make_renderer(width::Int, height::Int)
     w, h = widths(events(fig).window_area[])
     w > 0 && h > 0 ? _on_resize!(r, w, h) : _on_resize!(r, width, height)
     return r
+end
+
+# HiDPI scale: GLMakie's own (the system's, or one set with
+# GLMakie.activate!(scalefactor=...)), else, when the system reports none (as
+# X11 often does), the monitor's DPI over 96, rounded.
+function _scalefactor()
+    configured = Makie.current_default_theme()[:GLMakie][:scalefactor][]
+    configured isa Makie.Automatic || return configured
+    monitor = GLMakie.GLFW.GetPrimaryMonitor()
+    xscale, _ = GLMakie.GLFW.GetMonitorContentScale(monitor)
+    xscale > 1 && return Float64(xscale)
+    width_mm = GLMakie.GLFW.GetMonitorPhysicalSize(monitor).width
+    width_mm > 0 || return 1.0
+    dpi = GLMakie.GLFW.GetVideoMode(monitor).width / (width_mm / 25.4)
+    return max(1.0, round(dpi / 96))
 end
 
 # Window resize resets the camera to the origin at the current zoom, as in Python.
