@@ -1,0 +1,71 @@
+dyn_x 3000 7
+dyn_u 3000 2
+dyn_st 3000 7
+dyn_ks 3000 5
+pid_in 3000 4
+pid_out 3000 2
+constraint_in 3000 4
+constraint_out 3000 2
+vert_poses 2000 3
+vert_out 2000 4 2
+gjk_a 2000 3
+gjk_b 2000 3
+gjk_hit 2000
+multi_poses 300 5 3
+multi_collisions 300 5
+multi_idx 300 5
+map_berlin_dt_idx 4000 2
+map_berlin_dt_val 4000
+map_berlin_dt_stats 4
+map_berlin_scan_poses 26 3
+map_berlin_scans 26 1080
+map_levine_dt_idx 4000 2
+map_levine_dt_val 4000
+map_levine_dt_stats 4
+map_levine_scan_poses 26 3
+map_levine_scans 26 1080
+map_skirk_dt_idx 4000 2
+map_skirk_dt_val 4000
+map_skirk_dt_stats 4
+map_skirk_scan_poses 26 3
+map_skirk_scans 26 1080
+map_stata_basement_dt_idx 4000 2
+map_stata_basement_dt_val 4000
+map_stata_basement_dt_stats 4
+map_stata_basement_scan_poses 26 3
+map_stata_basement_scans 26 1080
+map_vegas_dt_idx 4000 2
+map_vegas_dt_val 4000
+map_vegas_dt_stats 4
+map_vegas_scan_poses 26 3
+map_vegas_scans 26 1080
+map_example_map_dt_idx 4000 2
+map_example_map_dt_val 4000
+map_example_map_dt_stats 4
+map_example_map_scan_poses 26 3
+map_example_map_scans 26 1080
+map_berlin_rot_scan_poses 24 3
+map_berlin_rot_scans 24 1080
+edt_small_0_in 37 53
+edt_small_0_out 37 53
+edt_small_1_in 64 41
+edt_small_1_out 64 41
+edt_small_2_in 20 90
+edt_small_2_out 20 90
+side_distances 1080
+scan_angles 1080
+raycast_poses 120 3
+raycast_opp 120 3
+raycast_base 120 1080
+raycast_out 120 1080
+ttc_scans 120 1080
+ttc_vel 120
+ttc_out 120
+roll_pp_single_rows 3330 14
+roll_pp_single_scans 35 1 1080
+roll_pp_two_rows 606 26
+roll_pp_two_scans 14 2 1080
+roll_wall_euler_rows 46 14
+roll_wall_euler_scans 6 1 1080
+roll_params_update_rows 601 26
+roll_params_update_scans 13 2 1080
