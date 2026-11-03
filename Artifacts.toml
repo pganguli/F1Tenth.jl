@@ -1,0 +1,7 @@
+[f1tenth_racetracks]
+git-tree-sha1 = "7d13ce7e4653f0da5d8e4817154111c8d94651d6"
+lazy = true
+
+    [[f1tenth_racetracks.download]]
+    sha256 = "a38dcc6852a718efbd97b73d927a963ea1a9e1d9c869767112b481db9122a0e3"
+    url = "https://github.com/f1tenth/f1tenth_racetracks/archive/b95c4eff766f6367d66b310ea20cd2c9563712c0.tar.gz"

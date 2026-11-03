@@ -38,8 +38,9 @@ render!(env)
 | `Integrator.RK4` | `Integrator.RK4` |
 
 Indices are 1-based. Observations are reused between steps; `copy(obs)`
-keeps one. Any ROS map (yaml + image) works, including the tracks in
-[f1tenth_racetracks](https://github.com/f1tenth/f1tenth_racetracks).
+keeps one. Besides Python's maps, the 23 tracks of
+[f1tenth_racetracks](https://github.com/f1tenth/f1tenth_racetracks) work by
+name (`map="Spa"`; downloaded on first use), and any ROS map works by path.
 
 ```@docs
 F1Tenth

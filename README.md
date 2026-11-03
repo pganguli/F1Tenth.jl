@@ -35,14 +35,17 @@ obs.poses_x, obs[:scans], info.checkpoint_done
 ```
 
 `F110Env` takes Python's keyword arguments: `seed`, `map` (`"berlin"`,
-`"skirk"`, `"levine"`, `"vegas"`, or a yaml path without its extension),
+`"skirk"`, `"levine"`, `"vegas"`, a real-world track such as `"Austin"` or
+`"Spa"`, or a yaml path without its extension),
 `map_ext`, `params` (a `VehicleParams` or a dict with every key),
 `num_agents`, `timestep`, `ego_idx`, `integrator` (`Integrator.RK4` or
 `Integrator.Euler`) and `lidar_dist`.
 
-Any ROS map (yaml + image) works, for example the real-world tracks in
-[f1tenth_racetracks](https://github.com/f1tenth/f1tenth_racetracks):
-download a track folder and pass `map="path/to/Austin/Austin_map"`.
+The 23 real-world tracks of
+[f1tenth_racetracks](https://github.com/f1tenth/f1tenth_racetracks) work by
+name (`keys(F1Tenth.RACETRACKS)`). They are GPL-3.0 licensed, so they are not
+bundled: Pkg downloads them (about 6 MB) the first time one is used. Any
+other ROS map (yaml + image) works by path.
 
 Also as in Python: `update_map!(env, path, ext)`,
 `update_params!(env, params; index=-1)`, `add_render_callback!(env, f)`, and
@@ -101,6 +104,8 @@ A port of [f1tenth_gym](https://github.com/f1tenth/f1tenth_gym) by Hongrui
 Zheng, Joseph Auckley, Matthew O'Kelly and Aman Sinha (MIT license), whose
 vehicle models follow the [CommonRoad](https://commonroad.in.tum.de/) single-track
 models. The bundled maps come from f1tenth_gym; see [maps/LICENSE](maps/LICENSE).
+The racetrack maps are downloaded from
+[f1tenth_racetracks](https://github.com/f1tenth/f1tenth_racetracks) (GPL-3.0).
 
 ## Tests
 

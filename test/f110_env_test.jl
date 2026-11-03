@@ -105,6 +105,15 @@ end
             env = F110Env(map=name, num_agents=1)
             @test env.map_ext == F1Tenth.BUILTIN_MAPS[name] && env.sim.scan_simulator.map !== nothing
         end
+        # f1tenth_racetracks maps by name (downloaded on first use)
+        for name in keys(F1Tenth.RACETRACKS)
+            yaml = F1Tenth.racetrack_yaml(name)
+            @test isfile(yaml) && isfile(replace(yaml, ".yaml" => ".png"))
+        end
+        env = F110Env(map="Spa", num_agents=1)
+        obs, = reset!(env, [0.0 0.0 0.0])   # every track's centerline starts at the origin
+        @test env.map_ext == ".png" && obs.collisions == [0.0] && 0.5 < minimum(obs.scans[1])
+
         env = F110Env()
         @test env.map_name == "vegas" && env.num_agents == 2 && env.ego_idx == 1 && env.timestep == 0.01
         @test env.integrator == Integrator.RK4 && env.params == VehicleParams()

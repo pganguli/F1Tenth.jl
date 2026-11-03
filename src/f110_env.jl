@@ -2,8 +2,22 @@
 
 const MAPS_DIR = joinpath(dirname(@__DIR__), "maps")
 
-# Maps selectable by name, with their image extensions.
+# Python's bundled maps, by name, with their image extensions.
 const BUILTIN_MAPS = Dict("berlin" => ".png", "skirk" => ".png", "levine" => ".pgm", "vegas" => ".png")
+
+# Real-world tracks from github.com/f1tenth/f1tenth_racetracks, by name =>
+# folder. Its license is GPL-3.0, so the maps are not bundled: Pkg downloads
+# them (a pinned commit, see Artifacts.toml) the first time one is used.
+const RACETRACKS = Dict(name => name for name in ("Austin", "BrandsHatch", "Budapest", "Catalunya",
+    "Hockenheim", "IMS", "Melbourne", "Montreal", "Monza", "MoscowRaceway", "Nuerburgring", "Oschersleben",
+    "Sakhir", "SaoPaulo", "Sepang", "Shanghai", "Silverstone", "Sochi", "Spa", "Spielberg", "YasMarina",
+    "Zandvoort"))
+RACETRACKS["MexicoCity"] = "Mexico City"
+
+function racetrack_yaml(name::AbstractString)
+    root = artifact"f1tenth_racetracks"
+    return joinpath(root, only(readdir(root)), RACETRACKS[name], name * "_map.yaml")
+end
 
 # render window size
 const WINDOW_W = 1000
@@ -17,8 +31,10 @@ The F1TENTH gym environment, with the keyword arguments of Python's
 `gym.make('f110_gym:f110-v0', **kwargs)`:
 
 - `seed`: seed of the LiDAR noise
-- `map`: `"berlin"`, `"skirk"`, `"levine"`, `"vegas"`, or the path of a map
-  yaml file without its extension
+- `map`: `"berlin"`, `"skirk"`, `"levine"`, `"vegas"`, a track from
+  [f1tenth_racetracks](https://github.com/f1tenth/f1tenth_racetracks) such as
+  `"Austin"` or `"Spa"` (downloaded on first use; see `F1Tenth.RACETRACKS`),
+  or the path of a map yaml file without its extension
 - `map_ext`: extension of the map image, such as `".png"` (built-in maps
   default to their own)
 - `params`: a [`VehicleParams`](@ref) or a dict with all of its keys
@@ -68,6 +84,9 @@ function F110Env(; seed::Integer=12345, map::Union{Nothing,AbstractString}=nothi
     if haskey(BUILTIN_MAPS, map_name)
         map_path = joinpath(MAPS_DIR, map_name * ".yaml")
         map_ext = something(map_ext, BUILTIN_MAPS[map_name])
+    elseif haskey(RACETRACKS, map_name)
+        map_path = racetrack_yaml(map_name)
+        map_ext = something(map_ext, ".png")
     else
         map_path = map_name * ".yaml"
         map_ext = something(map_ext, ".png")

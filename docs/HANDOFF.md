@@ -83,6 +83,13 @@ Run the scan tests after touching `lidar_tracing.jl` or `maps.jl`.
   (slower), a compact `UInt32` distance table (slower: scans are compute
   bound).
 
+## Additions beyond Python
+
+The one exception to "nothing more", requested by the project owner: the 23
+tracks of `f1tenth/f1tenth_racetracks` load by name (`F1Tenth.RACETRACKS`).
+That repo is GPL-3.0, so its maps are a lazy artifact (`Artifacts.toml`,
+pinned to commit b95c4ef), downloaded on first use and never bundled.
+
 ## Intentional differences from Python
 
 - 1-based indices: `ego_idx`, `update_params!(…; index)`, `collision_idx`
