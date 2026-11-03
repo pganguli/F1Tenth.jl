@@ -93,10 +93,21 @@ parallel yourself.
 
 ## Differences from Python
 
-Indices are 1-based, LiDAR noise has the same distribution but comes from
-Julia's random number generator, and inputs that crash the Python code work
-(`map="vegas"` by name, `"levine"` without `map_ext=".pgm"`). The full list
-is in [docs/HANDOFF.md](docs/HANDOFF.md).
+- Indices are 1-based (`ego_idx`, `update_params!(…; index)`).
+- LiDAR noise has the same distribution, but comes from Julia's random number
+  generator instead of numpy's.
+- Observations are reused between steps (see above).
+- Inputs that crash the Python code work: `map="vegas"` by name, `"levine"`
+  without `map_ext=".pgm"`, `map_ext` without the dot.
+- Python keeps the map and renderer in class attributes shared by every env
+  in a process; here each env has its own.
+- The render window uses GLMakie instead of pyglet: callbacks draw on
+  `renderer.axis` instead of adding to `batch`.
+- The f1tenth_racetracks maps load by name (Python has no equivalent).
+
+Python's quirks are kept where they change outputs: `obs.ego_idx` is always
+1, a wall hit zeroes the car's yaw as well as its speed, and car-to-car
+collisions keep the body size given at construction.
 
 ## Credits
 
