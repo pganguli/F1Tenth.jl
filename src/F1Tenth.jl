@@ -9,7 +9,7 @@ module F1Tenth
 import ColorTypes
 import FileIO
 import ImageIO   # loaded so FileIO can read map images from inside this package
-using LazyArtifacts: @artifact_str
+using LazyArtifacts   # the lazy-artifact download needs the module binding, not just the macro
 import Logging
 import Netpbm    # .pgm maps
 import YAML
