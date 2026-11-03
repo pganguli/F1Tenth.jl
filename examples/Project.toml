@@ -1,0 +1,6 @@
+[deps]
+F1Tenth = "ec9dc3f2-e932-4b18-a493-a4686694dcbe"
+GLMakie = "e9467ef8-e4e7-5192-8a1a-b1aee30e663a"
+
+[sources]
+F1Tenth = {path = ".."}
