@@ -92,11 +92,30 @@ end
         @test vehicle_dynamics_ks(SVector{5}(x[i, 1:5]), ui, p) ≈ ks[i, :] rtol = 1e-12 atol = 1e-12
     end
 
+    # The speed loop still matches Python; the steering loop deliberately doesn't
+    # (see "rate-limited steering" below).
     pin, pout = ref("pid_in"), ref("pid_out")
     for i in axes(pin, 1)
-        accl, sv = pid(pin[i, 1], pin[i, 2], pin[i, 3], pin[i, 4], p.sv_max, p.a_max, p.v_max, p.v_min)
+        accl, _ = pid(pin[i, 1], pin[i, 2], pin[i, 3], pin[i, 4], p.sv_max, p.a_max, p.v_max, p.v_min, 0.01)
         @test accl ≈ pout[i, 1] rtol = 1e-14 atol = 1e-14
-        @test sv == pout[i, 2]
+    end
+
+    @testset "rate-limited steering" begin
+        dt = 0.01
+        sv(target, current) = pid(0.0, target, 0.0, current, p.sv_max, p.a_max, p.v_max, p.v_min, dt)[2]
+        # large errors slew at the limit, small ones are closed in one step
+        @test sv(0.3, 0.0) == p.sv_max
+        @test sv(-0.3, 0.0) == -p.sv_max
+        @test sv(0.01, 0.0) ≈ 0.01 / dt
+        @test sv(0.2, 0.2) == 0.0
+        # stepping the angle reaches the target without overshoot, then holds still
+        δ, target, path = 0.0, 0.1, Float64[]
+        for _ in 1:20
+            δ += sv(target, δ) * dt
+            push!(path, δ)
+        end
+        @test all(path .<= target + 1e-12)
+        @test all(abs.(path[5:end] .- target) .< 1e-12)   # 0.1 rad at 0.032 rad/step: 4 steps
     end
 
     cin, cout = ref("constraint_in"), ref("constraint_out")

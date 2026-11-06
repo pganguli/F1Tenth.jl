@@ -112,16 +112,21 @@ vehicle_dynamics_st(x::AbstractVector, u::AbstractVector, p::VehicleParams) =
     vehicle_dynamics_st(SVector{7,Float64}(x), SVector{2,Float64}(u), p)
 
 """
-    pid(speed, steer, current_speed, current_steer, max_sv, max_a, max_v, min_v) -> (accl, sv)
+    pid(speed, steer, current_speed, current_steer, max_sv, max_a, max_v, min_v, dt) -> (accl, sv)
 
 The env's built-in controller: turns a target speed and steering angle into an
 acceleration and a steering velocity.
+
+Steering is rate limited: `sv` is the steering velocity that reaches `steer`
+in one step of length `dt`, clipped to `±max_sv`. Large changes slew at
+`max_sv`; small ones land on the target without overshoot. This differs from
+Python, whose bang-bang steering (always `±max_sv`) overshoots and then
+chatters around the target by up to `max_sv * dt` every step.
 """
 @inline function pid(speed::Float64, steer::Float64, current_speed::Float64, current_steer::Float64,
-    max_sv::Float64, max_a::Float64, max_v::Float64, min_v::Float64)
+    max_sv::Float64, max_a::Float64, max_v::Float64, min_v::Float64, dt::Float64)
     # steering
-    steer_diff = steer - current_steer
-    sv = abs(steer_diff) > 1e-4 ? (steer_diff / abs(steer_diff)) * max_sv : 0.0
+    sv = clamp((steer - current_steer) / dt, -max_sv, max_sv)
     # acceleration
     vel_diff = speed - current_speed
     if current_speed > 0.0
@@ -134,5 +139,5 @@ acceleration and a steering velocity.
     accl = kp * vel_diff
     return accl, sv
 end
-pid(speed, steer, current_speed, current_steer, max_sv, max_a, max_v, min_v) =
-    pid(map(Float64, (speed, steer, current_speed, current_steer, max_sv, max_a, max_v, min_v))...)
+pid(speed, steer, current_speed, current_steer, max_sv, max_a, max_v, min_v, dt) =
+    pid(map(Float64, (speed, steer, current_speed, current_steer, max_sv, max_a, max_v, min_v, dt))...)
