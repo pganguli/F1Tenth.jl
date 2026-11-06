@@ -9,8 +9,8 @@ using StaticArrays: SVector
 end
 
 @testset "Pacejka single-track model" begin
-    p = GYM_PARAMS
-    g = 9.81
+    p = DEFAULT_PARAMS
+    g = F1Tenth.GRAVITY
     @testset "matches ForzaETH's model with no drive force" begin
         # their vehicle_dynamics_st_pacejka, same tires and car (reference/forza_ref.py)
         for line in eachline(joinpath(@__DIR__, "reference", "data", "forza_st_pacejka.txt"))
@@ -25,13 +25,8 @@ end
         # stiffness, the yaw rate settles where the linear bicycle model says
         x = SVector(0.0, 0.0, 0.02, 3.0, 0.0, 0.0, 0.0)
         u = SVector(0.0, 0.0)
-        h = 1e-3
         for _ in 1:3000
-            k1 = vehicle_dynamics_st(x, u, p)
-            k2 = vehicle_dynamics_st(x + h / 2 * k1, u, p)
-            k3 = vehicle_dynamics_st(x + h / 2 * k2, u, p)
-            k4 = vehicle_dynamics_st(x + h * k3, u, p)
-            x = x + h / 6 * (k1 + 2k2 + 2k3 + k4)
+            x = F1Tenth._integrate(x, u, p, 1e-3, Integrator.RK4)
         end
         L = p.lf + p.lr
         Cαf = p.mu * p.Df * p.Bf * p.Cf * p.m * g * p.lr / L

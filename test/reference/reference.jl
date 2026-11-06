@@ -23,8 +23,8 @@ function ref(name::AbstractString)
     return permutedims(reshape(raw, reverse(dims)...), length(dims):-1:1)
 end
 
-const GYM_PARAMS = VehicleParams()
-# the Python gym's car, for checks of the kinematic model and the speed loop
+const DEFAULT_PARAMS = VehicleParams()   # the realistic car
+# the Python gym's car, for the steering-constraint and LiDAR-geometry checks against Python
 const PY_PARAMS = VehicleParams(; lf=0.15875, lr=0.17145, h=0.074, m=3.74, I=0.04712)
 const EXAMPLES_DIR = joinpath(dirname(dirname(@__DIR__)), "examples")
 const EXAMPLE_MAP = joinpath(EXAMPLES_DIR, "example_map")

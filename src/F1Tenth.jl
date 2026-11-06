@@ -1,8 +1,9 @@
 """
     F1Tenth
 
-A Julia port of the Python `f1tenth_gym` simulator, with the same features
-and outputs. Start with [`F110Env`](@ref).
+A Julia port of the Python `f1tenth_gym` simulator. On this branch
+(`realistic-dynamics`) its vehicle model and controller are replaced by a
+realistic one; see the README. Start with [`F110Env`](@ref).
 """
 module F1Tenth
 
@@ -18,7 +19,7 @@ using Random: AbstractRNG, Xoshiro, randn, randn!
 using SIMD: Vec, vifelse, vgather
 using StaticArrays: SVector, SMatrix, MVector, setindex
 
-# Files mirror the Python modules in f110_gym/envs.
+# Files mirror the Python modules in f110_gym/envs, plus actuators.jl.
 include("params.jl")
 include("dynamic_models.jl")
 include("actuators.jl")
