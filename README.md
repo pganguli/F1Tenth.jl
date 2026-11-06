@@ -107,6 +107,8 @@ parallel yourself.
   stretched) and scales up on HiDPI monitors; set
   `GLMakie.activate!(scalefactor=...)` to override.
 - The f1tenth_racetracks maps load by name (Python has no equivalent).
+- Choosing `Integrator.RK4` doesn't print Python's "different from previous
+  versions of the gym" warning.
 
 Python's quirks are kept where they change outputs: `obs.ego_idx` is always
 1, a wall hit zeroes the car's yaw as well as its speed, and car-to-car

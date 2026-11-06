@@ -85,9 +85,6 @@ function RaceCar(params::VehicleParams, seed::Integer; is_ego::Bool=false, time_
     num_beams::Integer=1080, fov::Real=4.7, integrator::Integrator.T=Integrator.Euler, lidar_dist::Real=0.0,
     scan_simulator::ScanSimulator2D=ScanSimulator2D(num_beams, fov),
     lidar::LidarGeometry=LidarGeometry(params, Int(num_beams), Float64(fov), get_increment(scan_simulator)))
-    if integrator == Integrator.RK4
-        @warn "Chosen integrator is RK4. This is different from previous versions of the gym." maxlog = 1
-    end
     steer_buffer_size = 2
     return RaceCar(params, seed, is_ego, time_step, num_beams, fov, integrator, lidar_dist, zero(State), Pose[],
         0.0, 0.0, zeros(steer_buffer_size), 0, steer_buffer_size, false, 0.005, Xoshiro(seed), scan_simulator,
