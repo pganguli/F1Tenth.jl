@@ -87,13 +87,18 @@ julia --project=examples examples/waypoint_follow.jl
 
 ## Performance
 
-`step!` time on an AMD Ryzen 5 7640U (example map, LiDAR noise on):
+`step!` time on an AMD Ryzen 5 7640U (example map, LiDAR noise on, every
+car driving the raceline; [benchmark/step.jl](benchmark/step.jl)):
 
 | cars | Python (numba) | Julia, 1 thread | Julia, 4 threads |
 |---|---|---|---|
-| 1 | 166 µs | 17 µs | 17 µs |
-| 2 | 426 µs | 34 µs | 30 µs |
-| 4 | 1084 µs | 81 µs | 51 µs |
+| 1 | 166 µs | 12 µs | 12 µs |
+| 2 | 426 µs | 25 µs | 19 µs |
+| 4 | 1084 µs | 51 µs | 21 µs |
+
+On this branch the two don't do the same work: each Julia step integrates
+the car ten times (1 ms sub-steps) but scans only at 40 Hz, where Python
+integrates once and scans every step.
 
 With several Julia threads (`julia -t auto`), each car is stepped on its own
 thread; set `F1Tenth.THREAD_AGENTS[] = false` when you run many envs in
