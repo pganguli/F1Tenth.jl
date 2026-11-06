@@ -39,7 +39,8 @@
     v = get_vertices((env.obs.poses_x[1], env.obs.poses_y[1], env.obs.poses_theta[1]), 0.58, 0.31)
     @test r.cars[1][][1][1] ≈ 50 * v[1][1] rtol = 1e-5
     @test r.score_label.x == 123.0
-    @test r.score_label.text == "Lap Time: 0.00, Ego Lap Count: 0"   # never updated, as in Python
+    # updated every frame, as in Python; reset! takes one step too, so 6 × 0.01 s
+    @test r.score_label.text == "Lap Time: 0.06, Ego Lap Count: 0"
     # initial camera, as Python's on_resize at zoom 1.2 (1000 × 800 unless the
     # window manager resized the window)
     @test (r.left, r.right) == (-0.6r.width, 0.6r.width) && (r.bottom, r.top) == (-0.6r.height, 0.6r.height)
