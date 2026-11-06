@@ -60,6 +60,12 @@ their VESC settings)
   VESC configuration (`vesc/config/f1tenth_original/vesc_mcconf.xml` in
   [TeoIlie/F1TENTH_System](https://github.com/TeoIlie/F1TENTH_System))
 
+**LiDAR** (the Hokuyo UST-10LX the stock F1TENTH stack drives with
+`urg_node`; Hokuyo's datasheet gives a 25 ms scan at 2400 rpm)
+
+- `scan_rate = 40.0`: scans per second; the car sees the latest scan until
+  the next one
+
 **Resistance** (off: no identified values for an F1TENTH car have been
 published; set them from a coast-down test of your own car)
 
@@ -111,6 +117,7 @@ Base.@kwdef struct VehicleParams
     vesc_rate::Float64 = 1000.0
     current_max::Float64 = 60.0
     flux_linkage::Float64 = 0.000776
+    scan_rate::Float64 = 40.0
     C_roll::Float64 = 0.0
     CdA::Float64 = 0.0
     width::Float64 = 0.31

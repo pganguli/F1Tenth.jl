@@ -8,7 +8,7 @@ end
 
 const W = WaypointFollowExample
 const CONF = W.load_config()
-const PLANNER = W.PurePursuitPlanner(CONF, 0.17145 + 0.15875)
+const PLANNER = W.PurePursuitPlanner(CONF, W.WHEELBASE)
 const START = [CONF["sx"] CONF["sy"] CONF["stheta"]]
 
 # Pure pursuit for every car, each with its own speed gain.

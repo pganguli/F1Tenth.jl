@@ -191,7 +191,7 @@ end
 # 1.375) for instant steering and linear tires that never run out of grip.
 # With the realistic car:
 # - the servo lag and command slew make a 0.82 m lookahead weave into a spin
-#   at any speed; at vgain 0.5 the shortest stable lookahead is 1.4 m
+#   from vgain 0.35 on; at vgain 0.5 the shortest stable lookahead is 1.4 m
 # - the raceline was planned for 1.02 g of cornering and the tires give about
 #   0.32 g, so its tightest corner spins the car from vgain 0.55 on
 # 1.5 m and 0.45 leave some margin on both.
@@ -205,9 +205,12 @@ function load_config()
     return conf
 end
 
+# Pure pursuit steers with the car's own wheelbase.
+const WHEELBASE = VehicleParams().lf + VehicleParams().lr
+
 function main()
     conf = load_config()
-    planner = PurePursuitPlanner(conf, 0.17145 + 0.15875)
+    planner = PurePursuitPlanner(conf, WHEELBASE)
 
     function render_callback(e)
         # camera follows the car

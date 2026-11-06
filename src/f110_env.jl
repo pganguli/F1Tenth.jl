@@ -74,6 +74,7 @@ mutable struct F110Env
     # rendering
     renderer::Union{Nothing,EnvRenderer}
     render_callbacks::Vector{Any}
+    wall_start::Float64   # wall-clock time matching sim time 0, for :human pacing
 end
 
 function F110Env(; seed::Integer=12345, map::Union{Nothing,AbstractString}=nothing,
@@ -102,7 +103,7 @@ function F110Env(; seed::Integer=12345, map::Union{Nothing,AbstractString}=nothi
         s.ang_vels_z, s.collisions, lap_times, lap_counts)
     return F110Env(seed, map_name, map_path, _normalize_ext(map_ext), params, n, timestep, ego_idx, integrator,
         lidar_dist, 0.0, s.collisions, lap_times, lap_counts, fill(true, n), zeros(n), fill(false, n), zeros(n),
-        zeros(n), zeros(n), one(SMatrix{2,2,Float64}), sim, obs, nothing, Any[])
+        zeros(n), zeros(n), one(SMatrix{2,2,Float64}), sim, obs, nothing, Any[], NaN)
 end
 
 Base.show(io::IO, env::F110Env) = print(io, "F110Env(map=\"", env.map_name, "\", num_agents=", env.num_agents,
@@ -195,11 +196,24 @@ Call `callback(renderer::EnvRenderer)` on every [`render!`](@ref), before drawin
 """
 add_render_callback!(env::F110Env, callback) = (push!(env.render_callbacks, callback); nothing)
 
+function _pace_to_real_time!(env::F110Env)
+    wait = env.wall_start + env.current_time - time()
+    if isnan(wait) || wait < -0.1 || wait > 0.1
+        env.wall_start = time() - env.current_time
+        wait = 0.0
+    end
+    wait >= 0.001 ? sleep(wait) : yield()   # sleep can't go below 1 ms
+    return nothing
+end
+
 """
     render!(env; mode=:human)
 
 Draw the environment in a window (needs `using GLMakie`). Drag to pan, scroll
-to zoom. `:human` waits 5 ms per frame, as Python does; `:human_fast` doesn't.
+to zoom. `:human` paces the window to real time: each frame waits until the
+wall clock catches up with the sim clock (Python just waits 5 ms per frame).
+If drawing falls behind by more than 0.1 s, or after a reset, the clocks are
+lined up again rather than rushed. `:human_fast` never waits.
 """
 function render!(env::F110Env; mode::Union{Symbol,AbstractString}=:human)
     mode = Symbol(mode)
@@ -211,6 +225,6 @@ function render!(env::F110Env; mode::Union{Symbol,AbstractString}=:human)
     _renderer_update_obs!(env.renderer, env.obs)
     foreach(callback -> callback(env.renderer), env.render_callbacks)
     _renderer_draw!(env.renderer)
-    mode === :human ? sleep(0.005) : yield()
+    mode === :human ? _pace_to_real_time!(env) : yield()
     return nothing
 end
