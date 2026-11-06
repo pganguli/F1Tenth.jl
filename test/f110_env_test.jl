@@ -47,7 +47,10 @@
         b = copy(reset!(env, [0.0 0.0 0.0])[1].scans[1])
         @test a == b
         no_scan_noise!(env)
-        clean = step!(env, [0.0 0.0])[1].scans[1]   # still at rest at the same pose
+        for _ in 1:3   # the next scan is at 25 ms; still at rest at the same pose
+            step!(env, [0.0 0.0])
+        end
+        clean = env.obs.scans[1]
         @test 0.007 < std(a - clean) < 0.013
 
         env = F110Env(map="berlin", num_agents=1)
@@ -78,4 +81,36 @@
             @test err isa ErrorException && occursin("using GLMakie", err.msg)
         end
     end
+end
+
+@testset "LiDAR at scan_rate, wall check every step" begin
+    env = F110Env(map=EXAMPLE_MAP, map_ext=".png", num_agents=1)
+    reset!(env, [0.7 0.0 1.37])
+    # 100 steps of 10 ms at 40 Hz: the scan (noisy, so every new one differs)
+    # changes on 40 of them
+    fresh, last = 0, copy(env.obs.scans[1])
+    for _ in 1:100
+        step!(env, [0.0 2.0])
+        env.obs.scans[1] != last && (fresh += 1)
+        last = copy(env.obs.scans[1])
+    end
+    @test fresh == 40
+
+    # the wall check skips the scan only when no beam could trigger: same
+    # answer as always scanning, at random poses and speeds near the walls
+    car = env.sim.agents[1]
+    sim = car.scan_simulator
+    rng = F1Tenth.Xoshiro(3)
+    same, hits = true, 0
+    for _ in 1:3000
+        x, y, θ, v = 0.7 + 3 * randn(rng), 6 * rand(rng) - 3, 2pi * rand(rng), 8 * randn(rng)
+        car.state = F1Tenth.State(x, y, 0.0, v, θ, 0.0, 0.0)
+        pose = F1Tenth._lidar_pose(car, F1Tenth._pose(car.state))   # before a hit zeroes the yaw
+        gated = F1Tenth.check_walls!(car)
+        full = check_ttc(get_scan!(car.truth_scan, sim, pose), v, car.lidar.scan_angles, car.lidar.cosines,
+            car.lidar.side_distances, car.ttc_thresh)
+        same &= gated == full
+        hits += gated
+    end
+    @test same && hits > 0   # and some of the poses did collide
 end

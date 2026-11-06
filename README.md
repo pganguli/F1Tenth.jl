@@ -178,8 +178,22 @@ run NUC5:
 Assumptions where nothing is published: no drivetrain losses, no motor or
 wheel inertia, no battery sag, and the VESC sees the car's forward speed as
 the motor speed (there is no wheel-slip state). The example's pure pursuit
-needed retuning for the servo lag: see `WORK` in
-[examples/waypoint_follow.jl](examples/waypoint_follow.jl).
+now steers with this car's wheelbase and needed retuning for the servo lag:
+see `WORK` in [examples/waypoint_follow.jl](examples/waypoint_follow.jl).
+
+**LiDAR.** Python scans every step. The stock F1TENTH LiDAR, a Hokuyo
+UST-10LX, scans every 25 ms (its datasheet), so the car scans at
+`scan_rate` = 40 Hz, from its pose at the scan time (on the 1 ms sub-steps),
+and the observation holds the latest scan in between. A scan is taken in one
+instant: the real sensor sweeps its 270° over about 19 ms, during which the
+car moves, and that distortion is not modeled. Other cars are added to a
+scan only when it is taken.
+
+Wall collisions no longer ride on the observed scan: they are ground truth,
+checked every step with Python's iTTC test on a noise-free scan from the
+car's current pose. That scan is skipped whenever the distance map shows no
+beam could trigger, which gives the same answer (checked against always
+scanning) and, with the 40 Hz LiDAR, about halves the time per step.
 
 ## Differences from Python
 
@@ -188,6 +202,10 @@ needed retuning for the servo lag: see `WORK` in
   different keys; `pid`, `accl_constraints` and `vehicle_dynamics_ks` are
   gone, and `vehicle_dynamics_st` takes the motor's drive acceleration and no
   longer takes Python's positional parameter list.
+- The LiDAR scans at 40 Hz and wall collisions use a noise-free scan (see
+  [Vehicle model changes](#vehicle-model-changes)).
+- `render!(env)` (`:human`) runs the window in real time; Python waits 5 ms
+  per frame, which only approximates it.
 - Indices are 1-based (`ego_idx`, `update_params!(…; index)`).
 - LiDAR noise has the same distribution, but comes from Julia's random number
   generator instead of numpy's.

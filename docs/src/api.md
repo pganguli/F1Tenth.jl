@@ -28,6 +28,7 @@ ScoreLabel
 ```@docs
 Simulator
 RaceCar
+F1Tenth.check_walls!
 Integrator
 VehicleParams
 update_pose!
