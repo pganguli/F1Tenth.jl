@@ -190,7 +190,7 @@ function update_pose!(car::RaceCar, raw_steer::Real, vel::Real)
     steer = _delay_steer!(car, Float64(raw_steer))
     p = car.params
     s = car.state
-    accl, sv = pid(Float64(vel), steer, s[4], s[3], p.sv_max, p.a_max, p.v_max, p.v_min)
+    accl, sv = pid(Float64(vel), steer, s[4], s[3], p.sv_max, p.a_max, p.v_max, p.v_min, car.time_step)
     s = _integrate(s, SVector(sv, accl), p, car.time_step, car.integrator)
     # bound yaw angle
     yaw = s[5]
