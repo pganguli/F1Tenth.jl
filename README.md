@@ -9,11 +9,13 @@ produces the same outputs: car poses, LiDAR scans, collisions, lap counts and
 lap times agree with the Python code to about 1e-14 over whole races. It runs
 10–20× faster.
 
-> **This branch (`realistic-dynamics`) departs from Python on purpose.** The car
-> has Magic Formula tires with a friction ellipse, identified on a real
-> F1TENTH car, and the built-in steering controller is rate limited instead
-> of bang-bang (see [Vehicle model changes](#vehicle-model-changes)). Results
-> no longer match Python step for step.
+> **This branch (`realistic-dynamics`) departs from Python on purpose.** It
+> simulates one real F1TENTH car, ForzaETH's NUC5, from published values:
+> Magic Formula tires with a friction ellipse, and the car's actual
+> low-level actuator chain (command limiter, steering servo, VESC speed
+> loop) in place of Python's controller (see
+> [Vehicle model changes](#vehicle-model-changes)). Results no longer match
+> Python step for step.
 
 ## Install
 
@@ -56,7 +58,7 @@ other ROS map (yaml + image) works by path.
 Also as in Python: `update_map!(env, path, ext)`,
 `update_params!(env, params; index=-1)`, `add_render_callback!(env, f)`, and
 the lower layers (`Simulator`, `RaceCar`, `ScanSimulator2D`,
-`vehicle_dynamics_st`, `pid`, `collision`, `get_vertices`, …).
+`vehicle_dynamics_st`, `collision`, `get_vertices`, …).
 
 **Observations are reused:** each `step!` overwrites the arrays in `obs` and
 `info`, so stepping allocates nothing. Use `copy(obs)` to keep one.
@@ -99,22 +101,6 @@ parallel yourself.
 
 ## Vehicle model changes
 
-**Steering.** Python's `pid` sets the steering velocity to `±sv_max` whenever
-the angle is more than 1e-4 rad from the command. At 10 ms steps that moves
-the angle 0.032 rad per step, so it overshoots and then chatters around the
-target by up to 0.032 rad (about 8% of full lock) forever. Here `pid` picks
-the steering velocity that reaches the command in one step, clipped to
-`±sv_max`:
-
-```julia
-sv = clamp((steer - current_steer) / dt, -sv_max, sv_max)
-```
-
-Large changes still slew at `sv_max`. Small ones land on the target and hold.
-This keeps CommonRoad's actuator model (the steering velocity is the input,
-bounded by `sv_max`; Althoff et al., *CommonRoad: Vehicle Models*) and adds no
-new parameters. `pid` takes the step length `dt` as a new last argument.
-
 **Tires.** Python's dynamic single-track model has linear tires: lateral
 force grows with slip angle forever, so the car never runs out of grip.
 `vehicle_dynamics_st` keeps the same state and single-track equations but
@@ -150,8 +136,8 @@ The rest of the model:
 The tires and car (`lf`, `lr`, `h`, `m`, `I`) are ForzaETH's on-track
 identification of their NUC5 car (`models/NUC5/NUC5_pacejka.txt` in
 [On-Track-SysID](https://github.com/ForzaETH/On-Track-SysID); Dikici et al.,
-arXiv:2411.17508). The steering, speed and acceleration limits and the body
-size are still f1tenth_gym's. `mu` scales every tire force for other floors
+arXiv:2411.17508). Only the tires were fitted there; the body values were
+ForzaETH's inputs. `mu` scales every tire force for other floors
 (1.0 is the identification floor). ForzaETH's published tire sets (their
 NUC2, NUC5, NUC6, NUC7 and sim cars) peak between about 0.3 and 1.2 times
 the load across cars and floors; on these tires that is `mu` from 1 up to
@@ -159,19 +145,49 @@ about 3, the range to randomize over.
 
 What this car is like: peak grip is about 0.40 (front) and 0.32 (rear)
 times the load. It understeers mildly in normal driving, but the rear lets
-go first at the limit, so it spins if pushed. Full throttle at launch uses
-all the front grip, leaving none for steering. The example's speed gain is
-cut from 1.375 to 0.35 to match. ForzaETH fitted the rear tire only up to
-0.2 rad of slip; past that the curve is an extrapolation.
+go first at the limit, so it spins if pushed. ForzaETH fitted the rear tire
+only up to 0.2 rad of slip; past that the curve is an extrapolation.
+
+**Actuators.** Python's `pid` (a P speed loop with gains of 10 and 2, a
+bang-bang steering loop, a two-step steering delay) and its limits (`a_max`,
+`v_switch`, which is CommonRoad's BMW 320i) are gone. Each step,
+`F1Tenth.actuate!` runs the chain a real car runs, the way ForzaETH's
+[f1tenth_system](https://github.com/ForzaETH/f1tenth_system) and race stack
+run NUC5:
+
+1. **Command limiter**, ForzaETH's `actuation_manager` at 75 Hz: clips the
+   planner's steering to -0.327…+0.292 rad and its speed to ±14.375 m/s, then
+   slews them at 2.46 rad/s and 2.5 m/s² (up and down).
+2. **Steering servo**: follows the limited command as a first-order lag with
+   ForzaETH's identified time constant, 0.158 s, within the mechanical limits
+   (±0.4189 rad, ±3.2 rad/s).
+3. **VESC speed loop**, as its firmware runs it at 1 kHz: the speed command
+   (4800 ERPM per m/s) becomes a setpoint ramped at 25,000 ERPM/s; a PID on
+   the motor speed sets the motor current, up to ±60 A; below 900 ERPM the
+   motor is released. The ramp, gains and limits are the firmware's defaults
+   ([vedderb/bldc](https://github.com/vedderb/bldc)), since ForzaETH don't
+   publish their VESC settings. The loop is reimplemented from the firmware's
+   behavior; no firmware code (GPL-3.0) is copied.
+4. **Motor**: drive force = `1.5 * flux_linkage * erpm_gain * 2π/60` per amp
+   (the standard torque of a permanent-magnet motor under field-oriented
+   control, carried through the gearing), 0.585 N/A, so 35 N (10 m/s²) at
+   60 A. The flux linkage, 0.000776 Wb, is the stock F1TENTH VESC
+   configuration's (`f1tenth_original` in
+   [TeoIlie/F1TENTH_System](https://github.com/TeoIlie/F1TENTH_System)).
+
+Assumptions where nothing is published: no drivetrain losses, no motor or
+wheel inertia, no battery sag, and the VESC sees the car's forward speed as
+the motor speed (there is no wheel-slip state). The example's pure pursuit
+needed retuning for the servo lag: see `WORK` in
+[examples/waypoint_follow.jl](examples/waypoint_follow.jl).
 
 ## Differences from Python
 
-- The tire model and car parameters (see
-  [Vehicle model changes](#vehicle-model-changes)). `VehicleParams` has new
-  keys (`Bf`, `Cf`, `Df`, `Ef`, `Br`, `Cr`, `Dr`, `Er`, `C_roll`, `CdA`) in
-  place of `C_Sf`, `C_Sr`, and `vehicle_dynamics_st` no longer takes Python's
-  positional parameter list.
-- The steering controller (see [Vehicle model changes](#vehicle-model-changes)).
+- The tire model, the actuator chain and the car parameters (see
+  [Vehicle model changes](#vehicle-model-changes)). `VehicleParams` has
+  different keys; `pid`, `accl_constraints` and `vehicle_dynamics_ks` are
+  gone, and `vehicle_dynamics_st` takes the motor's drive acceleration and no
+  longer takes Python's positional parameter list.
 - Indices are 1-based (`ego_idx`, `update_params!(…; index)`).
 - LiDAR noise has the same distribution, but comes from Julia's random number
   generator instead of numpy's.

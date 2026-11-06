@@ -48,9 +48,10 @@ end
     RaceCar(params, seed; is_ego=false, time_step=0.01, num_beams=1080, fov=4.7,
             integrator=Integrator.Euler, lidar_dist=0.0)
 
-One vehicle: dynamics, a two-step steering delay, the speed/steering
-controller and a LiDAR. `state` is `(x, y, steer_angle, vel, yaw_angle,
-yaw_rate, slip_angle)`. Scan noise is drawn from `scan_rng`; set it to
+One vehicle: the vehicle model, its low-level actuator chain (command
+limiter, steering servo, VESC speed loop; see [`F1Tenth.actuate!`](@ref)) and a
+LiDAR. `state` is `(x, y, steer_angle, vel, yaw_angle, yaw_rate,
+slip_angle)`. Scan noise is drawn from `scan_rng`; set it to
 `nothing` for noise-free scans (as `rng=None` in Python).
 
 Cars made by a [`Simulator`](@ref) share its scan simulator and beam tables,
@@ -67,11 +68,7 @@ mutable struct RaceCar
     lidar_dist::Float64
     state::State
     opp_poses::Vector{Pose}
-    accel::Float64
-    steer_angle_vel::Float64
-    steer_buffer::Vector{Float64}   # newest first; first steer_buffer_len entries are used
-    steer_buffer_len::Int
-    steer_buffer_size::Int
+    actuators::ActuatorState
     in_collision::Bool
     ttc_thresh::Float64
     scan_rng::Union{Nothing,Xoshiro}
@@ -85,10 +82,8 @@ function RaceCar(params::VehicleParams, seed::Integer; is_ego::Bool=false, time_
     num_beams::Integer=1080, fov::Real=4.7, integrator::Integrator.T=Integrator.Euler, lidar_dist::Real=0.0,
     scan_simulator::ScanSimulator2D=ScanSimulator2D(num_beams, fov),
     lidar::LidarGeometry=LidarGeometry(params, Int(num_beams), Float64(fov), get_increment(scan_simulator)))
-    steer_buffer_size = 2
     return RaceCar(params, seed, is_ego, time_step, num_beams, fov, integrator, lidar_dist, zero(State), Pose[],
-        0.0, 0.0, zeros(steer_buffer_size), 0, steer_buffer_size, false, 0.005, Xoshiro(seed), scan_simulator,
-        lidar, zeros(num_beams), zeros(num_beams))
+        ActuatorState(), false, 0.005, Xoshiro(seed), scan_simulator, lidar, zeros(num_beams), zeros(num_beams))
 end
 
 """
@@ -109,15 +104,13 @@ set_map!(car::RaceCar, map_path::AbstractString, map_ext::AbstractString) =
 """
     reset!(car::RaceCar, pose)
 
-Put the car at rest at `pose = (x, y, θ)`, clear its steering delay and
+Put the car at rest at `pose = (x, y, θ)`, reset its actuator chain and
 collision flag, and restart its scan noise from `seed`.
 """
 function reset!(car::RaceCar, pose)
-    car.accel = 0.0
-    car.steer_angle_vel = 0.0
+    reset!(car.actuators)
     car.in_collision = false
     car.state = State(pose[1], pose[2], 0.0, 0.0, pose[3], 0.0, 0.0)
-    car.steer_buffer_len = 0
     car.scan_rng = Xoshiro(car.seed)
     return car
 end
@@ -139,7 +132,8 @@ end
     check_ttc!(car, current_scan) -> Bool
 
 iTTC check against the environment (not other cars). On a hit the car is
-stopped as in Python: velocity, yaw, yaw rate and slip are all zeroed.
+stopped as in Python (velocity, yaw, yaw rate and slip are all zeroed) and
+the speed side of its actuator chain is zeroed with it.
 """
 function check_ttc!(car::RaceCar, current_scan::AbstractVector{Float64})
     g = car.lidar
@@ -147,25 +141,9 @@ function check_ttc!(car::RaceCar, current_scan::AbstractVector{Float64})
     car.in_collision = check_ttc(current_scan, s[4], g.scan_angles, g.cosines, g.side_distances, car.ttc_thresh)
     if car.in_collision
         car.state = State(s[1], s[2], s[3], 0.0, 0.0, 0.0, 0.0)
-        car.accel = 0.0
-        car.steer_angle_vel = 0.0
+        stop_motor!(car.actuators)
     end
     return car.in_collision
-end
-
-# Steering delay: push `raw_steer`, return the command from steer_buffer_size
-# calls ago (0 until the buffer has filled).
-function _delay_steer!(car::RaceCar, raw_steer::Float64)
-    buf, n = car.steer_buffer, car.steer_buffer_len
-    full = n == car.steer_buffer_size
-    steer = full ? buf[n] : 0.0
-    full || (n += 1)
-    for j in n:-1:2
-        buf[j] = buf[j-1]
-    end
-    buf[1] = raw_steer
-    car.steer_buffer_len = n
-    return steer
 end
 
 function _integrate(s::State, u::SVector{2,Float64}, p::VehicleParams, dt::Float64, integrator::Integrator.T)
@@ -182,16 +160,13 @@ end
 """
     update_pose!(car, raw_steer, vel) -> scan
 
-Advance the car one time step towards the requested steering angle and
-speed, then scan from the new pose. The scan is the car's own buffer,
-overwritten on the next call.
+Advance the car one time step under the planner command (steering angle,
+speed), through its actuator chain, then scan from the new pose. The scan is
+the car's own buffer, overwritten on the next call.
 """
 function update_pose!(car::RaceCar, raw_steer::Real, vel::Real)
-    steer = _delay_steer!(car, Float64(raw_steer))
-    p = car.params
+    actuate!(car, Float64(raw_steer), Float64(vel))
     s = car.state
-    accl, sv = pid(Float64(vel), steer, s[4], s[3], p.sv_max, p.a_max, p.v_max, p.v_min, car.time_step)
-    s = _integrate(s, SVector(sv, accl), p, car.time_step, car.integrator)
     # bound yaw angle
     yaw = s[5]
     if yaw > 2 * pi

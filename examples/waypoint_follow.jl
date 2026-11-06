@@ -187,12 +187,16 @@ end
 
 # ---------------------------------------------------------------------------
 
-# Python's example drives at vgain = 1.375, tuned for its linear tires, which
-# never run out of grip. The default Pacejka tires peak at about 0.3 g: at
-# 0.45 the car spins out in the first corners, 0.4 is the fastest that
-# finishes, and 0.35 leaves some margin.
-const WORK = Dict("mass" => 3.463388126201571, "lf" => 0.15597534362552312, "tlad" => 0.82461887897713965,
-    "vgain" => 0.35)
+# Python's example was tuned (lookahead tlad = 0.82 m, speed gain vgain =
+# 1.375) for instant steering and linear tires that never run out of grip.
+# With the realistic car:
+# - the servo lag and command slew make a 0.82 m lookahead weave into a spin
+#   at any speed; at vgain 0.5 the shortest stable lookahead is 1.4 m
+# - the raceline was planned for 1.02 g of cornering and the tires give about
+#   0.32 g, so its tightest corner spins the car from vgain 0.55 on
+# 1.5 m and 0.45 leave some margin on both.
+const WORK = Dict("mass" => 3.463388126201571, "lf" => 0.15597534362552312, "tlad" => 1.5,
+    "vgain" => 0.45)
 
 function load_config()
     conf = YAML.load_file(joinpath(@__DIR__, "config_example_map.yaml"))

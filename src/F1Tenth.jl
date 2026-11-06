@@ -21,6 +21,7 @@ using StaticArrays: SVector, SMatrix, MVector, setindex
 # Files mirror the Python modules in f110_gym/envs.
 include("params.jl")
 include("dynamic_models.jl")
+include("actuators.jl")
 include("collision_models.jl")
 include("maps.jl")
 include("laser_models.jl")
@@ -41,7 +42,7 @@ export EnvRenderer, ScoreLabel
 export Integrator, VehicleParams, Simulator, RaceCar, update_pose!, update_scan!, update_opp_poses!,
     check_ttc!, ray_cast_agents!, check_collision!, set_map!
 # dynamic_models
-export accl_constraints, steering_constraint, vehicle_dynamics_ks, vehicle_dynamics_st, pid
+export steering_constraint, vehicle_dynamics_st, drive_force_per_amp
 # collision_models
 export get_vertices, collision, collision_multiple
 # laser_models
