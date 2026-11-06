@@ -9,6 +9,7 @@ quiet(f) = Logging.with_logger(f, Logging.NullLogger())   # hides the one-time R
 
 @testset "F1Tenth.jl" begin
     include("dynamic_models_test.jl")
+    include("actuators_test.jl")
     include("collision_models_test.jl")
     include("laser_models_test.jl")
     include("f110_env_test.jl")

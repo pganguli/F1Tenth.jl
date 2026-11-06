@@ -47,7 +47,7 @@ end
     end
     @testset "2 cars, ego rams the opponent" begin
         env = quiet(() -> F110Env(map=EXAMPLE_MAP, map_ext=".png", num_agents=2))
-        obs, done, _ = drive(env, [START; opp_start], obs -> pursuit(obs, [0.35, 0.1]); max_steps=12000)
+        obs, done, _ = drive(env, [START; opp_start], obs -> pursuit(obs, [0.45, 0.1]); max_steps=12000)
         @test done && env.collisions == [1.0, 1.0]
     end
     @testset "Euler, 0.02 s steps, LiDAR offset, into a wall" begin
@@ -59,13 +59,13 @@ end
     end
     @testset "update_params! mid-run" begin
         slippery = merge(GYM_DICT, Dict("mu" => 0.6, "m" => 4.5, "length" => 0.8, "width" => 0.5))
-        heavy = merge(GYM_DICT, Dict("m" => 5.0, "a_max" => 6.0))
+        heavy = merge(GYM_DICT, Dict("m" => 5.0, "current_max" => 40.0))
         env = quiet(() -> F110Env(map=EXAMPLE_MAP, map_ext=".png", num_agents=2, seed=7))
         seen = VehicleParams[]
         events = Dict(100 => (e -> update_params!(e, slippery; index=2)),
             101 => (e -> append!(seen, [c.params for c in e.sim.agents])),
             250 => (e -> update_params!(e, heavy)))
-        drive(env, [START; opp_start], obs -> pursuit(obs, [0.35, 0.1]); max_steps=600, events=events)
+        drive(env, [START; opp_start], obs -> pursuit(obs, [0.45, 0.1]); max_steps=600, events=events)
         @test seen == [GYM_PARAMS, VehicleParams(slippery)]
         @test all(car.params == VehicleParams(heavy) for car in env.sim.agents)
         @test env.sim.params == GYM_PARAMS   # car-car collisions keep the initial body size

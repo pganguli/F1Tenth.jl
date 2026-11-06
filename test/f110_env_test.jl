@@ -37,7 +37,10 @@ const GYM_DICT = Dict(String(k) => getfield(GYM_PARAMS, k) for k in F1Tenth.PARA
         @test Set(keys(obs)) == Set([:ego_idx, :scans, :poses_x, :poses_y, :poses_theta, :linear_vels_x,
             :linear_vels_y, :ang_vels_z, :collisions, :lap_times, :lap_counts])
         snap = copy(obs)
-        step!(env, [0.2 3.0; 0.0 1.0])
+        # the VESC engages once the ramped speed command passes vesc_min_erpm
+        for _ in 1:20
+            step!(env, [0.2 3.0; 0.0 1.0])
+        end
         @test snap.poses_x == [0.0, 2.0] && obs.poses_x != snap.poses_x   # obs is reused, copies are not
         @test_throws ArgumentError reset!(env, [0.0 0.0 0.0])
         @test_throws DimensionMismatch step!(env, [0.0 1.0])

@@ -43,10 +43,10 @@ set_map!
 
 ```@docs
 vehicle_dynamics_st
-vehicle_dynamics_ks
-pid
-accl_constraints
 steering_constraint
+drive_force_per_amp
+F1Tenth.actuate!
+F1Tenth.ActuatorState
 ```
 
 ## Collisions

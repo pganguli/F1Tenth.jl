@@ -1,29 +1,6 @@
-# Single-track vehicle dynamics. The constraints and the kinematic model are
-# ported from f110_gym/envs/dynamic_models.py (itself following CommonRoad's
-# vehicle models), in the same arithmetic order so results agree to the last
-# few bits. The dynamic model replaces Python's linear tires with Magic
-# Formula tires and a friction ellipse.
-
-"""
-    accl_constraints(vel, accl, v_switch, a_max, v_min, v_max) -> Float64
-
-Clamp the requested acceleration `accl` to what the car can do at speed `vel`.
-"""
-@inline function accl_constraints(vel::Float64, accl::Float64, v_switch::Float64, a_max::Float64,
-    v_min::Float64, v_max::Float64)
-    # positive acceleration limit
-    pos_limit = vel > v_switch ? a_max * v_switch / vel : a_max
-    if (vel <= v_min && accl <= 0) || (vel >= v_max && accl >= 0)
-        return 0.0
-    elseif accl <= -a_max
-        return -a_max
-    elseif accl >= pos_limit
-        return pos_limit
-    end
-    return accl
-end
-accl_constraints(vel, accl, v_switch, a_max, v_min, v_max) =
-    accl_constraints(map(Float64, (vel, accl, v_switch, a_max, v_min, v_max))...)
+# Single-track vehicle dynamics with Magic Formula tires and a friction
+# ellipse. The steering constraint is ported from f110_gym/envs/dynamic_models.py
+# (itself following CommonRoad's vehicle models).
 
 """
     steering_constraint(steering_angle, steering_velocity, s_min, s_max, sv_min, sv_max) -> Float64
@@ -45,25 +22,6 @@ steering_constraint(steering_angle, steering_velocity, s_min, s_max, sv_min, sv_
     steering_constraint(map(Float64, (steering_angle, steering_velocity, s_min, s_max, sv_min, sv_max))...)
 
 @inline _steer_c(δ, sv, p::VehicleParams) = steering_constraint(δ, sv, p.s_min, p.s_max, p.sv_min, p.sv_max)
-@inline _accl_c(v, a, p::VehicleParams) = accl_constraints(v, a, p.v_switch, p.a_max, p.v_min, p.v_max)
-
-"""
-    vehicle_dynamics_ks(x, u_init, params::VehicleParams) -> SVector{5}
-
-Kinematic single-track model. State `x = (x, y, steering angle, velocity, yaw)`,
-input `u_init = (steering velocity, acceleration)`; inputs are clamped first.
-"""
-@inline function vehicle_dynamics_ks(x::SVector{5,Float64}, u_init::SVector{2,Float64}, p::VehicleParams)
-    # wheelbase
-    lwb = p.lf + p.lr
-    u1 = _steer_c(x[3], u_init[1], p)
-    u2 = _accl_c(x[4], u_init[2], p)
-    return SVector(x[4] * cos(x[5]),
-        x[4] * sin(x[5]),
-        u1,
-        u2,
-        x[4] / lwb * tan(x[3]))
-end
 
 const GRAVITY = 9.81      # m/s^2, as in CommonRoad and f1tenth_gym
 const AIR_DENSITY = 1.225  # kg/m^3, ISA sea level
@@ -104,8 +62,9 @@ end
 Dynamic single-track model with Magic Formula tires, a friction ellipse and
 an open-differential 4WD drivetrain. State `x = (x, y, steering angle,
 velocity, yaw, yaw rate, slip angle)`, input `u_init = (steering velocity,
-acceleration)`; inputs are clamped first. Below 0.5 m/s it switches to the
-kinematic model.
+drive acceleration)`. The steering velocity is clamped to the steering
+limits; the drive acceleration is the motor's force over the mass, before
+the tires limit it. Below 0.5 m/s it switches to the kinematic model.
 
 The lateral force on each axle is
 `mu * D * Fz * sin(C * atan(B*α - E*(B*α - atan(B*α))))`, scaled by
@@ -122,7 +81,7 @@ where `Fres` is rolling resistance plus aerodynamic drag. See
 """
 @inline function vehicle_dynamics_st(x::SVector{7,Float64}, u_init::SVector{2,Float64}, p::VehicleParams)
     u1 = _steer_c(x[3], u_init[1], p)
-    u2 = _accl_c(x[4], u_init[2], p)
+    u2 = u_init[2]
     lf, lr, m, I = p.lf, p.lr, p.m, p.I
     δ, v, r, β = x[3], x[4], x[6], x[7]
 
@@ -133,9 +92,12 @@ where `Fres` is rolling resistance plus aerodynamic drag. See
     # the grip limit and resistance
     if abs(v) < 0.5
         lwb = lf + lr
-        f_ks = vehicle_dynamics_ks(SVector(x[1], x[2], x[3], x[4], x[5]), SVector(u1, u2), p)
         v_dot = (2Fx - _resistance(v, p)) / m
-        return SVector(f_ks[1], f_ks[2], f_ks[3], v_dot, f_ks[5],
+        return SVector(v * cos(x[5]),
+            v * sin(x[5]),
+            u1,
+            v_dot,
+            v / lwb * tan(δ),
             v_dot / lwb * tan(δ) + v / (lwb * cos(δ)^2) * u1,
             0.0)
     end
@@ -164,48 +126,5 @@ where `Fres` is rolling resistance plus aerodynamic drag. See
         (vx * vy_dot - vy * vx_dot) / v^2)
 end
 
-# Python's positional signature for the kinematic model: (x, u, mu, C_Sf, C_Sr,
-# lf, lr, h, m, I, s_min, s_max, sv_min, sv_max, v_switch, a_max, v_min,
-# v_max). The kinematic model has no tires, so mu, C_Sf and C_Sr are unused.
-function _params_from_args(args)
-    _, _, _, lf, lr, h, m, I, s_min, s_max, sv_min, sv_max, v_switch, a_max, v_min, v_max = map(Float64, args)
-    return VehicleParams(; lf, lr, h, m, I, s_min, s_max, sv_min, sv_max, v_switch, a_max, v_min, v_max)
-end
-
-vehicle_dynamics_ks(x::AbstractVector, u::AbstractVector, args::Vararg{Real,16}) =
-    vehicle_dynamics_ks(SVector{5,Float64}(x), SVector{2,Float64}(u), _params_from_args(args))
-vehicle_dynamics_ks(x::AbstractVector, u::AbstractVector, p::VehicleParams) =
-    vehicle_dynamics_ks(SVector{5,Float64}(x), SVector{2,Float64}(u), p)
 vehicle_dynamics_st(x::AbstractVector, u::AbstractVector, p::VehicleParams) =
     vehicle_dynamics_st(SVector{7,Float64}(x), SVector{2,Float64}(u), p)
-
-"""
-    pid(speed, steer, current_speed, current_steer, max_sv, max_a, max_v, min_v, dt) -> (accl, sv)
-
-The env's built-in controller: turns a target speed and steering angle into an
-acceleration and a steering velocity.
-
-Steering is rate limited: `sv` is the steering velocity that reaches `steer`
-in one step of length `dt`, clipped to `±max_sv`. Large changes slew at
-`max_sv`; small ones land on the target without overshoot. This differs from
-Python, whose bang-bang steering (always `±max_sv`) overshoots and then
-chatters around the target by up to `max_sv * dt` every step.
-"""
-@inline function pid(speed::Float64, steer::Float64, current_speed::Float64, current_steer::Float64,
-    max_sv::Float64, max_a::Float64, max_v::Float64, min_v::Float64, dt::Float64)
-    # steering
-    sv = clamp((steer - current_steer) / dt, -max_sv, max_sv)
-    # acceleration
-    vel_diff = speed - current_speed
-    if current_speed > 0.0
-        # currently forward: accelerate or brake
-        kp = vel_diff > 0 ? 10.0 * max_a / max_v : 10.0 * max_a / (-min_v)
-    else
-        # currently backwards: brake or accelerate
-        kp = vel_diff > 0 ? 2.0 * max_a / max_v : 2.0 * max_a / (-min_v)
-    end
-    accl = kp * vel_diff
-    return accl, sv
-end
-pid(speed, steer, current_speed, current_steer, max_sv, max_a, max_v, min_v, dt) =
-    pid(map(Float64, (speed, steer, current_speed, current_steer, max_sv, max_a, max_v, min_v, dt))...)
