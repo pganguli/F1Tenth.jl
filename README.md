@@ -9,7 +9,7 @@ produces the same outputs: car poses, LiDAR scans, collisions, lap counts and
 lap times agree with the Python code to about 1e-14 over whole races. It runs
 10–20× faster.
 
-> **This branch (`pacejka-tires`) departs from Python on purpose.** The car
+> **This branch (`realistic-dynamics`) departs from Python on purpose.** The car
 > has Magic Formula tires with a friction ellipse, identified on a real
 > F1TENTH car, and the built-in steering controller is rate limited instead
 > of bang-bang (see [Vehicle model changes](#vehicle-model-changes)). Results
