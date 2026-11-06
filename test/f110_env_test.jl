@@ -1,8 +1,3 @@
-no_scan_noise!(env) = foreach(car -> car.scan_rng = nothing, env.sim.agents)
-
-# params as Python dicts
-const GYM_DICT = Dict(String(k) => getfield(GYM_PARAMS, k) for k in F1Tenth.PARAM_KEYS)
-
 @testset "F110Env API" begin
     quiet() do
         for name in keys(F1Tenth.BUILTIN_MAPS)
@@ -23,9 +18,9 @@ const GYM_DICT = Dict(String(k) => getfield(GYM_PARAMS, k) for k in F1Tenth.PARA
         @test env.integrator == Integrator.RK4 && env.params == VehicleParams()
 
         # params as a dict, like Python; every key is required
-        env = F110Env(map="berlin", params=merge(GYM_DICT, Dict("mu" => 0.9)))
+        env = F110Env(map="berlin", params=merge(DEFAULT_DICT, Dict("mu" => 0.9)))
         @test env.params.mu == 0.9
-        @test_throws KeyError F110Env(map="berlin", params=delete!(copy(GYM_DICT), "mu"))
+        @test_throws KeyError F110Env(map="berlin", params=delete!(copy(DEFAULT_DICT), "mu"))
 
         env = F110Env(map="berlin", num_agents=2, ego_idx=2)
         obs, reward, done, info = reset!(env, [0.0 0.0 0.0; 2.0 0.0 0.0])

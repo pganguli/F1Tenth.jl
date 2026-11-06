@@ -158,6 +158,37 @@ function _integrate(s::State, u::SVector{2,Float64}, p::VehicleParams, dt::Float
 end
 
 """
+    actuate!(car::RaceCar, steer, speed)
+
+Advance `car` one time step under the planner command `(steer, speed)`:
+the command limiter ticks at `command_rate`, the VESC speed loop and the
+steering servo run at `vesc_rate`, and the vehicle model is integrated over
+each of those sub-steps with the car's integrator.
+"""
+function actuate!(car::RaceCar, steer::Float64, speed::Float64)
+    a, p = car.actuators, car.params
+    a.steer_cmd, a.speed_cmd = steer, speed
+    n = max(1, round(Int, car.time_step * p.vesc_rate))
+    h = car.time_step / n
+    force = drive_force_per_amp(p) / p.m
+    s = car.state
+    for _ in 1:n
+        if a.tick_wait <= h / 2
+            _limiter_tick!(a, p)
+            a.tick_wait += 1 / p.command_rate
+        end
+        # the VESC sees the motor speed, here the car's forward speed (no
+        # wheel slip state)
+        _vesc_step!(a, p.erpm_gain * s[4] * cos(s[7]), h, p)
+        servo = (a.steer_out - s[3]) / p.tau_steer
+        s = _integrate(s, SVector(servo, force * a.current), p, h, car.integrator)
+        a.tick_wait -= h
+    end
+    car.state = s
+    return car
+end
+
+"""
     update_pose!(car, raw_steer, vel) -> scan
 
 Advance the car one time step under the planner command (steering angle,

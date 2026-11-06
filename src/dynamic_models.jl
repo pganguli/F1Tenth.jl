@@ -80,13 +80,13 @@ where `Fres` is rolling resistance plus aerodynamic drag. See
 [`VehicleParams`](@ref) for where the parameters come from.
 """
 @inline function vehicle_dynamics_st(x::SVector{7,Float64}, u_init::SVector{2,Float64}, p::VehicleParams)
-    u1 = _steer_c(x[3], u_init[1], p)
-    u2 = u_init[2]
+    sv = _steer_c(x[3], u_init[1], p)   # steering velocity
+    a = u_init[2]                       # drive acceleration
     lf, lr, m, I = p.lf, p.lr, p.m, p.I
     δ, v, r, β = x[3], x[4], x[6], x[7]
 
-    Fzf, Fzr = _axle_loads(u2, p)
-    Fx, Fmax_f, Fmax_r = _axle_drive(u2, Fzf, Fzr, p)
+    Fzf, Fzr = _axle_loads(a, p)
+    Fx, Fmax_f, Fmax_r = _axle_drive(a, Fzf, Fzr, p)
 
     # switch to kinematic model for small velocities; the speed still feels
     # the grip limit and resistance
@@ -95,10 +95,10 @@ where `Fres` is rolling resistance plus aerodynamic drag. See
         v_dot = (2Fx - _resistance(v, p)) / m
         return SVector(v * cos(x[5]),
             v * sin(x[5]),
-            u1,
+            sv,
             v_dot,
             v / lwb * tan(δ),
-            v_dot / lwb * tan(δ) + v / (lwb * cos(δ)^2) * u1,
+            v_dot / lwb * tan(δ) + v / (lwb * cos(δ)^2) * sv,
             0.0)
     end
 
@@ -119,7 +119,7 @@ where `Fres` is rolling resistance plus aerodynamic drag. See
 
     return SVector(v * cos(β + x[5]),
         v * sin(β + x[5]),
-        u1,
+        sv,
         (vx * vx_dot + vy * vy_dot) / v,
         r,
         r_dot,
