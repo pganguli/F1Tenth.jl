@@ -1,6 +1,8 @@
-# Single-track vehicle dynamics, ported from f110_gym/envs/dynamic_models.py
-# (itself following CommonRoad's vehicle models). Arithmetic is written in the
-# same order as the Python source so results agree to the last few bits.
+# Single-track vehicle dynamics. The constraints and the kinematic model are
+# ported from f110_gym/envs/dynamic_models.py (itself following CommonRoad's
+# vehicle models), in the same arithmetic order so results agree to the last
+# few bits. The dynamic model replaces Python's linear tires with Magic
+# Formula tires and a friction ellipse.
 
 """
     accl_constraints(vel, accl, v_switch, a_max, v_min, v_max) -> Float64
@@ -63,51 +65,117 @@ input `u_init = (steering velocity, acceleration)`; inputs are clamped first.
         x[4] / lwb * tan(x[3]))
 end
 
+const GRAVITY = 9.81      # m/s^2, as in CommonRoad and f1tenth_gym
+const AIR_DENSITY = 1.225  # kg/m^3, ISA sea level
+
+# Magic Formula pure-slip force per unit load and friction scale (Pacejka,
+# "Tire and Vehicle Dynamics"), in the form ForzaETH identify their tires with.
+@inline _magic_formula(α, B, C, D, E) = D * sin(C * atan(B * α - E * (B * α - atan(B * α))))
+
+# Vertical axle loads with longitudinal load transfer, as in CommonRoad's
+# single-track model.
+@inline function _axle_loads(a, p::VehicleParams)
+    l = p.lf + p.lr
+    return max(p.m * (-a * p.h + GRAVITY * p.lr) / l, 0.0), max(p.m * (a * p.h + GRAVITY * p.lf) / l, 0.0)
+end
+
+# Longitudinal force on each axle for acceleration `a`. F1TENTH chassis are
+# 4WD with an open center differential, which sends equal torque (so equal
+# force) to both axles, and can't pass more than the axle with less grip
+# holds. Peak grip is `mu * D * Fz` (D is the Magic Formula peak factor);
+# with no longitudinal tire data, the peak is assumed the same in every
+# direction (a friction circle).
+@inline function _axle_drive(a, Fzf, Fzr, p::VehicleParams)
+    Ff, Fr = p.mu * p.Df * Fzf, p.mu * p.Dr * Fzr
+    cap = min(Ff, Fr)
+    return clamp(p.m * a / 2, -cap, cap), Ff, Fr
+end
+
+# Lateral grip left once `Fx` of the peak `Fmax` is used (friction ellipse).
+@inline _derate(Fx, Fmax) = Fmax > 0 ? sqrt(max(1 - (Fx / Fmax)^2, 0.0)) : 0.0
+
+# Rolling resistance and aerodynamic drag, opposing the velocity `v`.
+@inline _resistance(v, p::VehicleParams) =
+    sign(v) * (p.C_roll * p.m * GRAVITY + 0.5 * AIR_DENSITY * p.CdA * v^2)
+
 """
     vehicle_dynamics_st(x, u_init, params::VehicleParams) -> SVector{7}
 
-Dynamic single-track model. State `x = (x, y, steering angle, velocity, yaw,
-yaw rate, slip angle)`, input `u_init = (steering velocity, acceleration)`.
-Below 0.5 m/s it switches to the kinematic model, exactly as the Python code.
+Dynamic single-track model with Magic Formula tires, a friction ellipse and
+an open-differential 4WD drivetrain. State `x = (x, y, steering angle,
+velocity, yaw, yaw rate, slip angle)`, input `u_init = (steering velocity,
+acceleration)`; inputs are clamped first. Below 0.5 m/s it switches to the
+kinematic model.
+
+The lateral force on each axle is
+`mu * D * Fz * sin(C * atan(B*α - E*(B*α - atan(B*α))))`, scaled by
+`sqrt(1 - (Fx/Fmax)^2)` for the grip the drive force `Fx` uses. The body
+accelerations are ForzaETH's single-track model (their EKF and their
+f1tenth_gym fork), with the front drive force added:
+
+    v̇x = (Fxr + Fxf cos δ - Fyf sin δ - Fres) / m + vy ψ̇
+    v̇y = (Fyr + Fxf sin δ + Fyf cos δ) / m - vx ψ̇
+    ψ̈  = (lf (Fyf cos δ + Fxf sin δ) - lr Fyr) / I
+
+where `Fres` is rolling resistance plus aerodynamic drag. See
+[`VehicleParams`](@ref) for where the parameters come from.
 """
 @inline function vehicle_dynamics_st(x::SVector{7,Float64}, u_init::SVector{2,Float64}, p::VehicleParams)
-    # gravity constant m/s^2
-    g = 9.81
     u1 = _steer_c(x[3], u_init[1], p)
     u2 = _accl_c(x[4], u_init[2], p)
-    mu, C_Sf, C_Sr, lf, lr, h, m, I = p.mu, p.C_Sf, p.C_Sr, p.lf, p.lr, p.h, p.m, p.I
+    lf, lr, m, I = p.lf, p.lr, p.m, p.I
+    δ, v, r, β = x[3], x[4], x[6], x[7]
 
-    # switch to kinematic model for small velocities
-    if abs(x[4]) < 0.5
+    Fzf, Fzr = _axle_loads(u2, p)
+    Fx, Fmax_f, Fmax_r = _axle_drive(u2, Fzf, Fzr, p)
+
+    # switch to kinematic model for small velocities; the speed still feels
+    # the grip limit and resistance
+    if abs(v) < 0.5
         lwb = lf + lr
         f_ks = vehicle_dynamics_ks(SVector(x[1], x[2], x[3], x[4], x[5]), SVector(u1, u2), p)
-        return SVector(f_ks[1], f_ks[2], f_ks[3], f_ks[4], f_ks[5],
-            u2 / lwb * tan(x[3]) + x[4] / (lwb * cos(x[3])^2) * u1,
+        v_dot = (2Fx - _resistance(v, p)) / m
+        return SVector(f_ks[1], f_ks[2], f_ks[3], v_dot, f_ks[5],
+            v_dot / lwb * tan(δ) + v / (lwb * cos(δ)^2) * u1,
             0.0)
     end
-    return SVector(x[4] * cos(x[7] + x[5]),
-        x[4] * sin(x[7] + x[5]),
+
+    # body frame velocities and slip angles
+    vx, vy = v * cos(β), v * sin(β)
+    α_f = atan(-vy - lf * r, vx) + δ
+    α_r = atan(-vy + lr * r, vx)
+
+    # lateral tire forces, derated for the grip the drive force uses
+    Fyf = _derate(Fx, Fmax_f) * p.mu * Fzf * _magic_formula(α_f, p.Bf, p.Cf, p.Df, p.Ef)
+    Fyr = _derate(Fx, Fmax_r) * p.mu * Fzr * _magic_formula(α_r, p.Br, p.Cr, p.Dr, p.Er)
+
+    # body frame accelerations
+    sδ, cδ = sincos(δ)
+    vx_dot = (Fx + Fx * cδ - Fyf * sδ - _resistance(vx, p)) / m + vy * r
+    vy_dot = (Fyr + Fx * sδ + Fyf * cδ) / m - vx * r
+    r_dot = (lf * (Fyf * cδ + Fx * sδ) - lr * Fyr) / I
+
+    return SVector(v * cos(β + x[5]),
+        v * sin(β + x[5]),
         u1,
-        u2,
-        x[6],
-        -mu * m / (x[4] * I * (lr + lf)) * (lf^2 * C_Sf * (g * lr - u2 * h) + lr^2 * C_Sr * (g * lf + u2 * h)) * x[6] +
-        mu * m / (I * (lr + lf)) * (lr * C_Sr * (g * lf + u2 * h) - lf * C_Sf * (g * lr - u2 * h)) * x[7] +
-        mu * m / (I * (lr + lf)) * lf * C_Sf * (g * lr - u2 * h) * x[3],
-        (mu / (x[4]^2 * (lr + lf)) * (C_Sr * (g * lf + u2 * h) * lr - C_Sf * (g * lr - u2 * h) * lf) - 1) * x[6] -
-        mu / (x[4] * (lr + lf)) * (C_Sr * (g * lf + u2 * h) + C_Sf * (g * lr - u2 * h)) * x[7] +
-        mu / (x[4] * (lr + lf)) * (C_Sf * (g * lr - u2 * h)) * x[3])
+        (vx * vx_dot + vy * vy_dot) / v,
+        r,
+        r_dot,
+        (vx * vy_dot - vy * vx_dot) / v^2)
 end
 
-# Python's positional signature: (x, u, mu, C_Sf, C_Sr, lf, lr, h, m, I, s_min,
-# s_max, sv_min, sv_max, v_switch, a_max, v_min, v_max).
-_params_from_args(args) = VehicleParams(map(Float64, args)..., 0.31, 0.58)
+# Python's positional signature for the kinematic model: (x, u, mu, C_Sf, C_Sr,
+# lf, lr, h, m, I, s_min, s_max, sv_min, sv_max, v_switch, a_max, v_min,
+# v_max). The kinematic model has no tires, so mu, C_Sf and C_Sr are unused.
+function _params_from_args(args)
+    _, _, _, lf, lr, h, m, I, s_min, s_max, sv_min, sv_max, v_switch, a_max, v_min, v_max = map(Float64, args)
+    return VehicleParams(; lf, lr, h, m, I, s_min, s_max, sv_min, sv_max, v_switch, a_max, v_min, v_max)
+end
 
 vehicle_dynamics_ks(x::AbstractVector, u::AbstractVector, args::Vararg{Real,16}) =
     vehicle_dynamics_ks(SVector{5,Float64}(x), SVector{2,Float64}(u), _params_from_args(args))
 vehicle_dynamics_ks(x::AbstractVector, u::AbstractVector, p::VehicleParams) =
     vehicle_dynamics_ks(SVector{5,Float64}(x), SVector{2,Float64}(u), p)
-vehicle_dynamics_st(x::AbstractVector, u::AbstractVector, args::Vararg{Real,16}) =
-    vehicle_dynamics_st(SVector{7,Float64}(x), SVector{2,Float64}(u), _params_from_args(args))
 vehicle_dynamics_st(x::AbstractVector, u::AbstractVector, p::VehicleParams) =
     vehicle_dynamics_st(SVector{7,Float64}(x), SVector{2,Float64}(u), p)
 

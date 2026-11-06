@@ -9,10 +9,11 @@ produces the same outputs: car poses, LiDAR scans, collisions, lap counts and
 lap times agree with the Python code to about 1e-14 over whole races. It runs
 10–20× faster.
 
-> **This branch (`steering-rate-limit`) departs from Python on purpose.** The
-> built-in steering controller is rate limited instead of bang-bang (see
-> [Vehicle model changes](#vehicle-model-changes)), so trajectories no longer
-> match Python step for step.
+> **This branch (`pacejka-tires`) departs from Python on purpose.** The car
+> has Magic Formula tires with a friction ellipse, identified on a real
+> F1TENTH car, and the built-in steering controller is rate limited instead
+> of bang-bang (see [Vehicle model changes](#vehicle-model-changes)). Results
+> no longer match Python step for step.
 
 ## Install
 
@@ -114,8 +115,62 @@ This keeps CommonRoad's actuator model (the steering velocity is the input,
 bounded by `sv_max`; Althoff et al., *CommonRoad: Vehicle Models*) and adds no
 new parameters. `pid` takes the step length `dt` as a new last argument.
 
+**Tires.** Python's dynamic single-track model has linear tires: lateral
+force grows with slip angle forever, so the car never runs out of grip.
+`vehicle_dynamics_st` keeps the same state and single-track equations but
+gives each axle a Magic Formula tire (Pacejka, *Tire and Vehicle Dynamics*),
+in the form ForzaETH identify and simulate with:
+
+```text
+Fy = mu * D * Fz * sin(C * atan(B*α - E*(B*α - atan(B*α))))
+```
+
+The rest of the model:
+
+- **Load transfer.** As in CommonRoad, the axle loads `Fz` shift with
+  longitudinal acceleration.
+- **Drivetrain.** F1TENTH chassis are 4WD with an open center differential,
+  which sends equal torque to both axles. Each axle gets half the drive force,
+  limited by the grip of the weaker axle.
+- **Friction ellipse.** Grip the drive force uses is taken from cornering:
+  `Fy` is scaled by `sqrt(1 - (Fx / (mu*D*Fz))^2)`. This is the friction
+  ellipse approximation of combined slip (Pacejka). With no longitudinal tire
+  data, the peak force is assumed to be the same in every direction.
+- **Body accelerations.** The force balance is ForzaETH's single-track model
+  (their EKF and their f1tenth_gym fork), with the front drive force added.
+  With no drive force it matches their `vehicle_dynamics_st_pacejka` to 1e-12
+  (`test/reference/forza_ref.py`).
+- **Rolling resistance and drag.** `C_roll * m * g + ½ ρ CdA v²` opposes the
+  motion. Both are off by default: no identified values for an F1TENTH car
+  have been published, so set `C_roll` and `CdA` from a coast-down test of
+  your own car.
+- **Low speed.** Below 0.5 m/s it is still the kinematic model, as in Python,
+  but the speed obeys the same grip limit and resistance.
+
+The tires and car (`lf`, `lr`, `h`, `m`, `I`) are ForzaETH's on-track
+identification of their NUC5 car (`models/NUC5/NUC5_pacejka.txt` in
+[On-Track-SysID](https://github.com/ForzaETH/On-Track-SysID); Dikici et al.,
+arXiv:2411.17508). The steering, speed and acceleration limits and the body
+size are still f1tenth_gym's. `mu` scales every tire force for other floors
+(1.0 is the identification floor). ForzaETH's published tire sets (their
+NUC2, NUC5, NUC6, NUC7 and sim cars) peak between about 0.3 and 1.2 times
+the load across cars and floors; on these tires that is `mu` from 1 up to
+about 3, the range to randomize over.
+
+What this car is like: peak grip is about 0.40 (front) and 0.32 (rear)
+times the load. It understeers mildly in normal driving, but the rear lets
+go first at the limit, so it spins if pushed. Full throttle at launch uses
+all the front grip, leaving none for steering. The example's speed gain is
+cut from 1.375 to 0.35 to match. ForzaETH fitted the rear tire only up to
+0.2 rad of slip; past that the curve is an extrapolation.
+
 ## Differences from Python
 
+- The tire model and car parameters (see
+  [Vehicle model changes](#vehicle-model-changes)). `VehicleParams` has new
+  keys (`Bf`, `Cf`, `Df`, `Ef`, `Br`, `Cr`, `Dr`, `Er`, `C_roll`, `CdA`) in
+  place of `C_Sf`, `C_Sr`, and `vehicle_dynamics_st` no longer takes Python's
+  positional parameter list.
 - The steering controller (see [Vehicle model changes](#vehicle-model-changes)).
 - Indices are 1-based (`ego_idx`, `update_params!(…; index)`).
 - LiDAR noise has the same distribution, but comes from Julia's random number
@@ -143,7 +198,10 @@ collisions keep the body size given at construction.
 A port of [f1tenth_gym](https://github.com/f1tenth/f1tenth_gym) by Hongrui
 Zheng, Joseph Auckley, Matthew O'Kelly and Aman Sinha (MIT license), whose
 vehicle models follow the [CommonRoad](https://commonroad.in.tum.de/) single-track
-models. The bundled maps come from f1tenth_gym; see [maps/LICENSE](maps/LICENSE).
+models. The tire model and its parameters come from ForzaETH's
+[On-Track-SysID](https://github.com/ForzaETH/On-Track-SysID) and their
+[f1tenth_gym fork](https://github.com/ForzaETH/f1tenth_gym) (MIT license).
+The bundled maps come from f1tenth_gym; see [maps/LICENSE](maps/LICENSE).
 The racetrack maps are downloaded from
 [f1tenth_racetracks](https://github.com/f1tenth/f1tenth_racetracks) (GPL-3.0).
 

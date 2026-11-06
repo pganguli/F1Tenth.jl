@@ -85,7 +85,7 @@ end
 end
 
 @testset "LiDAR geometry, iTTC and car occlusion (match Python)" begin
-    sim = quiet(() -> Simulator(GYM_PARAMS, 1, 12345))
+    sim = quiet(() -> Simulator(PY_PARAMS, 1, 12345))   # the car Python ran with
     g = sim.agents[1].lidar
     @test g.side_distances ≈ ref("side_distances") rtol = 1e-14
     @test g.scan_angles ≈ ref("scan_angles") rtol = 1e-14 atol = 1e-15

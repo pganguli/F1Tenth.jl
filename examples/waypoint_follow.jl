@@ -187,8 +187,12 @@ end
 
 # ---------------------------------------------------------------------------
 
+# Python's example drives at vgain = 1.375, tuned for its linear tires, which
+# never run out of grip. The default Pacejka tires peak at about 0.3 g: at
+# 0.45 the car spins out in the first corners, 0.4 is the fastest that
+# finishes, and 0.35 leaves some margin.
 const WORK = Dict("mass" => 3.463388126201571, "lf" => 0.15597534362552312, "tlad" => 0.82461887897713965,
-    "vgain" => 1.375)
+    "vgain" => 0.35)
 
 function load_config()
     conf = YAML.load_file(joinpath(@__DIR__, "config_example_map.yaml"))
