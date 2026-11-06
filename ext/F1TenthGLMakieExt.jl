@@ -173,6 +173,7 @@ function F1Tenth._renderer_update_obs!(r::EnvRenderer, obs::Observation)
         r.poses[j, :] .= (obs.poses_x[j], obs.poses_y[j], obs.poses_theta[j])
         r.cars[j][] = _car_points(obs.poses_x[j], obs.poses_y[j], obs.poses_theta[j])
     end
+    r.score_label.text = @sprintf("Lap Time: %.2f, Ego Lap Count: %.0f", obs.lap_times[1], obs.lap_counts[obs.ego_idx])
     return r
 end
 
