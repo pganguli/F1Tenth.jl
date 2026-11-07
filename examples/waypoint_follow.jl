@@ -189,14 +189,12 @@ end
 
 # Python's example was tuned (lookahead tlad = 0.82 m, speed gain vgain =
 # 1.375) for instant steering and linear tires that never run out of grip.
-# With the realistic car:
-# - the servo lag and command slew make a 0.82 m lookahead weave into a spin
-#   from vgain 0.35 on; at vgain 0.5 the shortest stable lookahead is 1.4 m
-# - the raceline was planned for 1.02 g of cornering and the tires give about
-#   0.32 g, so its tightest corner spins the car from vgain 0.55 on
-# 1.5 m and 0.45 leave some margin on both.
+# With the realistic car, the servo lag and command slew make pure pursuit
+# weave, more the faster it goes: a 0.82 m lookahead hits a wall even at
+# vgain 0.45, 1.2 m from vgain 0.7 on, and 1.5 m from 0.8 on (the tires are
+# far from their grip limit then). 1.5 m and 0.6 leave some margin.
 const WORK = Dict("mass" => 3.463388126201571, "lf" => 0.15597534362552312, "tlad" => 1.5,
-    "vgain" => 0.45)
+    "vgain" => 0.6)
 
 function load_config()
     conf = YAML.load_file(joinpath(@__DIR__, "config_example_map.yaml"))

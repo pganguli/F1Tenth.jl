@@ -18,6 +18,9 @@ for n in names:
     # run only the four pure-math functions, with numba stubbed out
     exec(m.group(0), ns)  # noqa: S102
 f = ns["vehicle_dynamics_st_pacejka"]
+# A fixed car, not the defaults (the test checks the equations, so any car
+# will do): On-Track-SysID's NUC5 tires and body. test/dynamic_models_test.jl
+# passes the same values.
 tires = (6.4196, 0.9826, 0.4044, 0.5073, 7.5624, 1.3006, 0.3237, 0.6478)
 geo = (0.165, 0.155, 0.02, 3.5, 0.0627)
 lim = (-0.4189, 0.4189, -3.2, 3.2, 7.319, 9.51, -5.0, 20.0)

@@ -81,7 +81,7 @@ end
         car = chain_car()
         v, _ = hold(car, 0.0, 3.0, 800)
         accel = diff([0.0; v]) ./ 0.01
-        @test maximum(accel) < 3.0   # the tires could give about 3.4 m/s²
+        @test maximum(accel) < 3.0   # the limiter's 2.5 m/s², well inside the tires' 10 m/s²
         @test abs(v[100] - 2.5) < 0.2   # 2.5 m/s² ramp, slightly behind
         @test abs(v[end] - 3.0) < 0.01
     end
@@ -96,9 +96,10 @@ end
     end
 
     @testset "integral action holds speed in a turn" begin
+        # the VESC sees the forward speed (v cos β), not the total speed
         car = chain_car()
-        v, _ = hold(car, 0.15, 2.0, 3000)
-        @test abs(v[end] - 2.0) < 1e-3
+        hold(car, 0.15, 2.0, 3000)
+        @test abs(car.state[4] * cos(car.state[7]) - 2.0) < 1e-3
     end
 
     @testset "steering: slew, servo lag, command range" begin

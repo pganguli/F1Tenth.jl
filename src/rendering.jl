@@ -2,8 +2,6 @@
 # itself is in ext/F1TenthGLMakieExt.jl, loaded by `using GLMakie`, so
 # headless use never pays GLMakie's load time.
 
-const CAR_LENGTH = 0.58      # car shape drawn by the renderer (fixed, as in Python)
-const CAR_WIDTH = 0.31
 const RENDER_SCALE = 50.0    # renderer units per meter, as in Python
 const ZOOM_IN_FACTOR = 1.2
 const ZOOM_OUT_FACTOR = 1 / ZOOM_IN_FACTOR

@@ -130,7 +130,7 @@ The rest of the model:
 - **Body accelerations.** The force balance is ForzaETH's single-track model
   (their EKF and their f1tenth_gym fork), with the front drive force added.
   With no drive force it matches their `vehicle_dynamics_st_pacejka` to 1e-12
-  (`test/reference/forza_ref.py`).
+  (`test/reference/forza_ref.py`, on a fixed car).
 - **Rolling resistance and drag.** `C_roll * m * g + ½ ρ CdA v²` opposes the
   motion. Both are off by default: no identified values for an F1TENTH car
   have been published, so set `C_roll` and `CdA` from a coast-down test of
@@ -138,20 +138,28 @@ The rest of the model:
 - **Low speed.** Below 0.5 m/s it is still the kinematic model, as in Python,
   but the speed obeys the same grip limit and resistance.
 
-The tires and car (`lf`, `lr`, `h`, `m`, `I`) are ForzaETH's on-track
-identification of their NUC5 car (`models/NUC5/NUC5_pacejka.txt` in
-[On-Track-SysID](https://github.com/ForzaETH/On-Track-SysID); Dikici et al.,
-arXiv:2411.17508). Only the tires were fitted there; the body values were
-ForzaETH's inputs. `mu` scales every tire force for other floors
-(1.0 is the identification floor). ForzaETH's published tire sets (their
-NUC2, NUC5, NUC6, NUC7 and sim cars) peak between about 0.3 and 1.2 times
-the load across cars and floors; on these tires that is `mu` from 1 up to
-about 3, the range to randomize over.
+The tires and body (`lf`, `lr`, `h`, `m`, `I`, `width`) are NUC5's, from
+ForzaETH's race stack, the configuration they race the car with
+([race_stack](https://github.com/ForzaETH/race_stack), branch `ros2-humble`:
+`stack_master/config/NUC5/car_model.yaml`, and the tires ForzaETH identified
+on their "dubi" floor, `stack_master/config/NUC5/pacejka/dubi/default.yaml`).
+Their On-Track-SysID repository also has a NUC5 model
+(`models/NUC5/NUC5_pacejka.txt`; Dikici et al., arXiv:2411.17508), but its
+body values don't match the race stack's NUC5 (3.5 kg and a 0.32 m wheelbase
+against 2.783 kg and 0.257 m), and its tires peak where its identification
+drive's cornering stopped (about 0.3 g), so the race stack's are used. `mu`
+scales every tire force for other floors (1.0 is the identification floor).
+ForzaETH's published tire sets (their NUC2, NUC5, NUC6, NUC7 and sim cars)
+peak between about 0.3 and 1.2 times the load across cars and floors; on
+these tires that is `mu` from about 0.3 to 1.2, the range to randomize over.
 
-What this car is like: peak grip is about 0.40 (front) and 0.32 (rear)
-times the load. It understeers mildly in normal driving, but the rear lets
-go first at the limit, so it spins if pushed. ForzaETH fitted the rear tire
-only up to 0.2 rad of slip; past that the curve is an extrapolation.
+What this car is like: the rear tires peak at 1.0 times the load, at 0.25 rad
+of slip. The front tires build grip slowly (0.45, 0.77 and 1.11 times the
+load at 0.1, 0.2 and 0.4 rad), so the car understeers: at the limit the
+front slides first and the car runs wide rather than spinning. The rear
+tire's fitted `Er` (1.692) is above 1, which makes its force fall past
+0.25 rad and reverse past 0.63 rad; that is an artifact of the fit, at slip
+angles where the car is already spinning.
 
 **Actuators.** Python's `pid` (a P speed loop with gains of 10 and 2, a
 bang-bang steering loop, a two-step steering delay) and its limits (`a_max`,
@@ -243,7 +251,8 @@ the 90° behind the car, uses only the forward speed, lets a wall reach
 - Collisions with walls and other cars follow body sizes set by
   `update_params!`; Python keeps the size given at construction.
 - `render!(env)` (`:human`) runs the window in real time; Python waits 5 ms
-  per frame, which only approximates it.
+  per frame, which only approximates it. Each car is drawn at its body size
+  (`length` × `width`); Python draws a fixed 0.58 × 0.31 m.
 - Indices are 1-based (`ego_idx`, `update_params!(…; index)`).
 - LiDAR noise has the same distribution, but comes from Julia's random number
   generator instead of numpy's.
@@ -268,9 +277,12 @@ One Python quirk is kept: `obs.ego_idx` is always 1.
 A port of [f1tenth_gym](https://github.com/f1tenth/f1tenth_gym) by Hongrui
 Zheng, Joseph Auckley, Matthew O'Kelly and Aman Sinha (MIT license), whose
 vehicle models follow the [CommonRoad](https://commonroad.in.tum.de/) single-track
-models. The tire model and its parameters come from ForzaETH's
+models. The tire model comes from ForzaETH's
 [On-Track-SysID](https://github.com/ForzaETH/On-Track-SysID) and their
-[f1tenth_gym fork](https://github.com/ForzaETH/f1tenth_gym) (MIT license).
+[f1tenth_gym fork](https://github.com/ForzaETH/f1tenth_gym) (MIT license);
+NUC5's parameters come from their
+[race_stack](https://github.com/ForzaETH/race_stack) configuration (values
+only; no code is copied).
 The bundled maps come from f1tenth_gym; see [maps/LICENSE](maps/LICENSE).
 The racetrack maps are downloaded from
 [f1tenth_racetracks](https://github.com/f1tenth/f1tenth_racetracks) (GPL-3.0).

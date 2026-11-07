@@ -12,11 +12,13 @@ end
     p = DEFAULT_PARAMS
     g = F1Tenth.GRAVITY
     @testset "matches ForzaETH's model with no drive force" begin
-        # their vehicle_dynamics_st_pacejka, same tires and car (reference/forza_ref.py)
+        # their vehicle_dynamics_st_pacejka on the car reference/forza_ref.py uses
+        car = (Bf=6.4196, Cf=0.9826, Df=0.4044, Ef=0.5073, Br=7.5624, Cr=1.3006, Dr=0.3237, Er=0.6478,
+            lf=0.165, lr=0.155, h=0.02, m=3.5, I=0.0627)
         for line in eachline(joinpath(@__DIR__, "reference", "data", "forza_st_pacejka.txt"))
             row = parse.(Float64, split(line))
             x, u, mu, f = SVector{7}(row[1:7]), SVector{2}(row[8:9]), row[10], row[11:17]
-            @test vehicle_dynamics_st(x, u, VehicleParams(; mu)) ≈ f rtol = 1e-12 atol = 1e-12
+            @test vehicle_dynamics_st(x, u, VehicleParams(; mu, car...)) ≈ f rtol = 1e-12 atol = 1e-12
         end
     end
 
@@ -61,8 +63,11 @@ end
         x = SVector(0.0, 0.0, 0.15, 4.0, 0.0, 0.5, -0.05)
         lateral(a) = (f = vehicle_dynamics_st(x, SVector(0.0, a), p);
             v = x[4]; β = x[7]; f[4] * sin(β) + v * cos(β) * f[7] + v * cos(β) * x[6])
-        @test abs(lateral(9.0)) < abs(lateral(1.0)) < abs(lateral(0.0))
-        @test abs(lateral(-9.0)) < abs(lateral(0.0))
+        # a small drive force can add lateral force (the steered front wheels
+        # push partly sideways, and accelerating loads the rear), but more of
+        # it, either way, takes grip from cornering
+        @test abs(lateral(9.0)) < abs(lateral(3.0))
+        @test abs(lateral(-9.0)) < abs(lateral(-3.0)) < abs(lateral(0.0))
     end
 
     @testset "rolling resistance and drag" begin

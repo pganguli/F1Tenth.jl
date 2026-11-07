@@ -4,8 +4,8 @@
 module F1TenthGLMakieExt
 
 using F1Tenth
-using F1Tenth: EnvRenderer, ScoreLabel, MapData, Observation, get_vertices, RENDER_SCALE, CAR_LENGTH,
-    CAR_WIDTH, ZOOM_IN_FACTOR, ZOOM_OUT_FACTOR
+using F1Tenth: EnvRenderer, ScoreLabel, MapData, Observation, get_vertices, RENDER_SCALE,
+    ZOOM_IN_FACTOR, ZOOM_OUT_FACTOR
 using GLMakie
 using Printf: @sprintf
 
@@ -152,18 +152,18 @@ function F1Tenth._renderer_update_map!(r::EnvRenderer, m::MapData)
     return r
 end
 
-function _car_points(x, y, th)
-    v = get_vertices((x, y, th), CAR_LENGTH, CAR_WIDTH)
+function _car_points(x, y, th, (length, width))
+    v = get_vertices((x, y, th), length, width)
     # a plain Vector: Makie rejects static vectors of points
     return Point2f[Point2f(RENDER_SCALE * v[k][1], RENDER_SCALE * v[k][2]) for k in 1:4]::Vector{Point2f}
 end
 
-function F1Tenth._renderer_update_obs!(r::EnvRenderer, obs::Observation)
+function F1Tenth._renderer_update_obs!(r::EnvRenderer, obs::Observation, sizes)
     r.ego_idx = obs.ego_idx
     n = length(obs.poses_x)
     if r.poses === nothing   # first frame: one polygon per car
         for i in 1:n
-            pts = Observable(_car_points(0.0, 0.0, 0.0))
+            pts = Observable(_car_points(0.0, 0.0, 0.0, sizes[i]))
             poly!(r.axis, pts; color=i == r.ego_idx ? EGO_COLOR : OPP_COLOR)
             push!(r.cars, pts)
         end
@@ -171,7 +171,7 @@ function F1Tenth._renderer_update_obs!(r::EnvRenderer, obs::Observation)
     end
     for j in 1:n
         r.poses[j, :] .= (obs.poses_x[j], obs.poses_y[j], obs.poses_theta[j])
-        r.cars[j][] = _car_points(obs.poses_x[j], obs.poses_y[j], obs.poses_theta[j])
+        r.cars[j][] = _car_points(obs.poses_x[j], obs.poses_y[j], obs.poses_theta[j], sizes[j])
     end
     r.score_label.text = @sprintf("Lap Time: %.2f, Ego Lap Count: %.0f", obs.lap_times[1], obs.lap_counts[obs.ego_idx])
     return r

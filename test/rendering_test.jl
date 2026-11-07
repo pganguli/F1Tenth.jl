@@ -35,8 +35,9 @@
     @test r isa EnvRenderer
     @test calls[] == 6
     @test length(r.cars) == 2 && r.poses[:, 1] == env.obs.poses_x
-    # car corners are 50 × get_vertices with the fixed renderer car size
-    v = get_vertices((env.obs.poses_x[1], env.obs.poses_y[1], env.obs.poses_theta[1]), 0.58, 0.31)
+    # car corners are 50 × get_vertices with the car's body size
+    p1 = env.sim.agents[1].params
+    v = get_vertices((env.obs.poses_x[1], env.obs.poses_y[1], env.obs.poses_theta[1]), p1.length, p1.width)
     @test r.cars[1][][1][1] ≈ 50 * v[1][1] rtol = 1e-5
     @test r.score_label.x == 123.0
     # updated every frame, as in Python; reset! takes one step too, so 6 × 0.01 s

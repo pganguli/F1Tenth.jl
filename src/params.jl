@@ -5,26 +5,32 @@
 Parameters of one car: the vehicle model (see [`vehicle_dynamics_st`](@ref))
 and its low-level actuator chain (see [`RaceCar`](@ref)). Every default is a
 published value for ForzaETH's NUC5 F1TENTH car, or, where ForzaETH publish
-none, a published default of the hardware it runs.
+none, a published default of the hardware it runs. "Race stack" below is
+[ForzaETH/race_stack](https://github.com/ForzaETH/race_stack), branch
+`ros2-humble`, where NUC5's configuration lives.
 
-**Tires and body** (ForzaETH's on-track identification of NUC5:
-`models/NUC5/NUC5_pacejka.txt` in
-[On-Track-SysID](https://github.com/ForzaETH/On-Track-SysID); Dikici et al.,
-arXiv:2411.17508. Their tire formula has no friction scale, hence `mu = 1`.)
+**Tires** (race stack, `stack_master/config/NUC5/pacejka/dubi/default.yaml`:
+ForzaETH's tire identification of NUC5 on their "dubi" floor, with
+`friction_coeff: 1.0`)
 
 - `mu = 1.0`: friction scale on every tire force; 1 is the identification floor
-- `Bf = 6.4196`, `Cf = 0.9826`, `Df = 0.4044`, `Ef = 0.5073` and
-  `Br = 7.5624`, `Cr = 1.3006`, `Dr = 0.3237`, `Er = 0.6478`: front and rear
+- `Bf = 4.142`, `Cf = 0.4375`, `Df = 2.6476`, `Ef = 0.2332` and
+  `Br = 4.8721`, `Cr = 2.1651`, `Dr = 1.057`, `Er = 1.692`: front and rear
   Magic Formula coefficients. The lateral force on an axle is
-  `mu * D * Fz * sin(C * atan(B*α - E*(B*α - atan(B*α))))`, so `D` is the
-  peak friction coefficient
-- `lf = 0.165`, `lr = 0.155`: center of gravity to front/rear axle (m)
-- `h = 0.02`: height of the center of gravity (m)
-- `m = 3.5`: mass (kg)
+  `mu * D * Fz * sin(C * atan(B*α - E*(B*α - atan(B*α))))`, so `D` bounds
+  the friction coefficient. The rear force peaks at 1.00 times the load at
+  0.25 rad of slip; with `Er > 1` it then falls, and reverses past 0.63 rad,
+  an artifact of the fit (the car is spinning by then). The front builds
+  slowly: 0.45, 0.77 and 1.11 times the load at 0.1, 0.2 and 0.4 rad.
+
+**Body** (race stack, `stack_master/config/NUC5/car_model.yaml`)
+
+- `lf = 0.130`, `lr = 0.127`: center of gravity to front/rear axle (m)
+- `h = 0.074`: height of the center of gravity (m)
+- `m = 2.783`: mass (kg)
 - `I = 0.0627`: yaw moment of inertia (kg m²)
 
-**Steering hardware** (ForzaETH race stack,
-`stack_master/config/NUC5/car_model.yaml`)
+**Steering hardware** (race stack, `stack_master/config/NUC5/car_model.yaml`)
 
 - `s_min = -0.4189`, `s_max = 0.4189`: mechanical steering angle limits (rad)
 - `sv_min = -3.2`, `sv_max = 3.2`: steering velocity limits (rad/s)
@@ -33,7 +39,7 @@ arXiv:2411.17508. Their tire formula has no friction scale, hence `mu = 1`.)
 
 **Command limiter** (ForzaETH's `actuation_manager`, in
 [ForzaETH/f1tenth_system](https://github.com/ForzaETH/f1tenth_system), with
-NUC5's limits from the race stack's `stack_master/config/NUC5/vesc.yaml`)
+NUC5's limits from the race stack, `stack_master/config/NUC5/vesc.yaml`)
 
 - `command_rate = 75.0`: how often it passes a command on (Hz)
 - `steer_cmd_min = -0.3271441202`, `steer_cmd_max = 0.2917771883`: steering
@@ -54,8 +60,8 @@ the only published one for the stock F1TENTH motor (the motor of the stock
 ForzaETH's commands: braking in speed control and ERPM up to 100,000.
 Its speed loop settings are the firmware's defaults but the derivative filter.
 
-- `erpm_gain = 4800.0`: electrical RPM of the motor per m/s (ForzaETH NUC5,
-  `speed_to_erpm_gain`)
+- `erpm_gain = 4800.0`: electrical RPM of the motor per m/s (race stack,
+  NUC5's `vesc.yaml`, `speed_to_erpm_gain`)
 - `erpm_ramp = 25000.0`: speed setpoint ramp (ERPM/s)
 - `vesc_kp = 0.004`, `vesc_ki = 0.004`, `vesc_kd = 0.0001`,
   `vesc_kd_filter = 0.5`: speed PID gains and derivative filter
@@ -83,27 +89,29 @@ published; set them from a coast-down test of your own car)
 - `C_roll = 0.0`: rolling resistance coefficient (force `C_roll * m * g`)
 - `CdA = 0.0`: drag coefficient times frontal area (m², force `½ ρ CdA v²`)
 
-**Body size** for collisions (ForzaETH's
-[f1tenth_gym fork](https://github.com/ForzaETH/f1tenth_gym) defaults)
+**Body size** for collisions and drawing
 
-- `width = 0.31`, `length = 0.58` (m)
+- `width = 0.228`: race stack, NUC5's `car_model.yaml` (`width_m`) (m)
+- `length = 0.58`: ForzaETH's
+  [f1tenth_gym fork](https://github.com/ForzaETH/f1tenth_gym) default; NUC5's
+  configuration gives none (m)
 
 A dict (`String` or `Symbol` keys) must hold every key; extra keys are ignored.
 """
 Base.@kwdef struct VehicleParams
     mu::Float64 = 1.0
-    Bf::Float64 = 6.4196
-    Cf::Float64 = 0.9826
-    Df::Float64 = 0.4044
-    Ef::Float64 = 0.5073
-    Br::Float64 = 7.5624
-    Cr::Float64 = 1.3006
-    Dr::Float64 = 0.3237
-    Er::Float64 = 0.6478
-    lf::Float64 = 0.165
-    lr::Float64 = 0.155
-    h::Float64 = 0.02
-    m::Float64 = 3.5
+    Bf::Float64 = 4.142
+    Cf::Float64 = 0.4375
+    Df::Float64 = 2.6476
+    Ef::Float64 = 0.2332
+    Br::Float64 = 4.8721
+    Cr::Float64 = 2.1651
+    Dr::Float64 = 1.057
+    Er::Float64 = 1.692
+    lf::Float64 = 0.130
+    lr::Float64 = 0.127
+    h::Float64 = 0.074
+    m::Float64 = 2.783
     I::Float64 = 0.0627
     s_min::Float64 = -0.4189
     s_max::Float64 = 0.4189
@@ -134,7 +142,7 @@ Base.@kwdef struct VehicleParams
     scan_noise::Float64 = 0.03
     C_roll::Float64 = 0.0
     CdA::Float64 = 0.0
-    width::Float64 = 0.31
+    width::Float64 = 0.228
     length::Float64 = 0.58
 end
 
