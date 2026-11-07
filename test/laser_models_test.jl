@@ -86,7 +86,7 @@ end
 
 @testset "LiDAR geometry, iTTC and car occlusion (match Python)" begin
     # Python's LiDAR layout (1080 beams over 4.7 rad); the iTTC check is fed
-    # Python's car outline, since this branch measures to the real body
+    # Python's car outline, since this package measures to the real body
     g = F1Tenth.LidarGeometry(1080, 4.7, get_increment(ScanSimulator2D(1080, 4.7)))
     @test g.scan_angles ≈ ref("scan_angles") rtol = 1e-14 atol = 1e-15
     py_sides = ref("side_distances")

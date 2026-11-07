@@ -1,4 +1,4 @@
-# Closed-loop runs with the waypoint_follow example's planner. This branch's
+# Closed-loop runs with the waypoint_follow example's planner. The
 # vehicle model departs from Python on purpose, so these check behavior
 # (laps finish, crashes are caught, parameter updates apply) rather than
 # matching Python's trajectories step for step.

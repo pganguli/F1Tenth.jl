@@ -1,9 +1,12 @@
 # F1Tenth.jl
 
-A Julia port of the Python [`f1tenth_gym`](https://github.com/f1tenth/f1tenth_gym)
-simulator, with the same features. For the same inputs it gives the same
-outputs (poses, LiDAR scans, collisions, laps) as the Python code, 10–20×
-faster.
+An F1TENTH simulator in Julia, ported from the Python
+[`f1tenth_gym`](https://github.com/f1tenth/f1tenth_gym) and keeping its API,
+that simulates one real car, ForzaETH's NUC5, from published values: Magic
+Formula tires, the car's actual actuator chain (command limiter, steering
+servo, VESC speed loop) and its Hokuyo UST-10LX LiDAR. The strict port, whose
+outputs match the Python code's, is kept on the `archive/python-compat`
+branch.
 
 ## Quick start
 

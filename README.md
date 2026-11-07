@@ -3,19 +3,20 @@
 [![CI](https://github.com/pganguli/F1Tenth.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/pganguli/F1Tenth.jl/actions/workflows/CI.yml?query=branch%3Amain)
 [![Docs](https://img.shields.io/badge/docs-dev-blue.svg)](https://pganguli.github.io/F1Tenth.jl/dev/)
 
-A Julia port of the Python [`f1tenth_gym`](https://github.com/f1tenth/f1tenth_gym)
-simulator, with the same features and nothing more. For the same inputs it
-produces the same outputs: car poses, LiDAR scans, collisions, lap counts and
-lap times agree with the Python code to about 1e-14 over whole races. It runs
-10–20× faster.
+An F1TENTH simulator in Julia, ported from the Python
+[`f1tenth_gym`](https://github.com/f1tenth/f1tenth_gym) and keeping its API,
+that simulates one real F1TENTH car, ForzaETH's NUC5, from published values:
+Magic Formula tires with a friction ellipse, the car's actual low-level
+actuator chain (command limiter, steering servo, VESC speed loop) in place of
+Python's controller, and its Hokuyo UST-10LX LiDAR as its specification
+describes it (see [Vehicle model changes](#vehicle-model-changes)). Results
+therefore don't match Python step for step.
 
-> **This branch (`realistic-dynamics`) departs from Python on purpose.** It
-> simulates one real F1TENTH car, ForzaETH's NUC5, from published values:
-> Magic Formula tires with a friction ellipse, and the car's actual
-> low-level actuator chain (command limiter, steering servo, VESC speed
-> loop) in place of Python's controller (see
-> [Vehicle model changes](#vehicle-model-changes)). Results no longer match
-> Python step for step.
+> The strict port, with Python's features and nothing more, whose car poses,
+> LiDAR scans, collisions, lap counts and lap times agree with the Python code
+> to about 1e-14 over whole races (10–20× faster), is kept on the
+> [`archive/python-compat`](https://github.com/pganguli/F1Tenth.jl/tree/archive/python-compat)
+> branch.
 
 ## Install
 
@@ -96,7 +97,7 @@ car driving the raceline; [benchmark/step.jl](benchmark/step.jl)):
 | 2 | 426 µs | 25 µs | 19 µs |
 | 4 | 1084 µs | 51 µs | 21 µs |
 
-On this branch the two don't do the same work: each Julia step integrates
+The two don't do the same work: each Julia step integrates
 the car ten times (1 ms sub-steps) but scans only at 40 Hz, where Python
 integrates once and scans every step.
 

@@ -1,9 +1,10 @@
 """
     F1Tenth
 
-A Julia port of the Python `f1tenth_gym` simulator. On this branch
-(`realistic-dynamics`) its vehicle model and controller are replaced by a
-realistic one; see the README. Start with [`F110Env`](@ref).
+An F1TENTH simulator, ported from the Python `f1tenth_gym` and keeping its
+API, with a realistic vehicle model, actuator chain and LiDAR for ForzaETH's
+NUC5 car; see the README. (The strict Python port is on the
+`archive/python-compat` branch.) Start with [`F110Env`](@ref).
 """
 module F1Tenth
 
