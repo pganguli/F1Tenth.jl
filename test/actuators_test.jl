@@ -54,12 +54,17 @@ end
 
     @testset "VESC speed loop" begin
         a = F1Tenth.ActuatorState()
-        # a setpoint below the minimum motor speed releases the motor
+        # below the minimum speed setpoint the PID stops and the windings are
+        # shorted: no current at rest, a braking current when turning
         a.speed_out = 0.9 * p.vesc_min_erpm / p.erpm_gain
         for _ in 1:100
             F1Tenth._vesc_step!(a, 0.0, 0.001, p)
         end
         @test a.current == 0.0 && a.i_term == 0.0
+        F1Tenth._vesc_step!(a, 1000.0, 0.001, p)
+        ω = 1000 * 2pi / 60   # back-EMF over the winding resistance, less a little for its inductance
+        @test 0.99 < -a.current / (ω * p.flux_linkage / p.motor_resistance) < 1
+        F1Tenth._vesc_step!(a, 0.0, 0.001, p)
         # the setpoint ramps at erpm_ramp, and a large error saturates the current
         a.speed_out = 5.0
         F1Tenth._vesc_step!(a, 0.0, 0.001, p)
@@ -79,6 +84,15 @@ end
         @test maximum(accel) < 3.0   # the tires could give about 3.4 m/s²
         @test abs(v[100] - 2.5) < 0.2   # 2.5 m/s² ramp, slightly behind
         @test abs(v[end] - 3.0) < 0.01
+    end
+
+    @testset "a stop command stops the car" begin
+        # the speed loop brakes down to its minimum setpoint, then the shorted
+        # windings brake the rest of the way (no creeping on)
+        car = chain_car()
+        hold(car, 0.0, 3.0, 300)
+        v, _ = hold(car, 0.0, 0.0, 200)
+        @test v[end] < 1e-3
     end
 
     @testset "integral action holds speed in a turn" begin

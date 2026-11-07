@@ -5,7 +5,8 @@
 #        slew-limit the steering and speed commands
 #     -> steering servo: first-order lag towards the steering command
 #     -> VESC motor controller (1 kHz): ramp the speed setpoint, PID on motor
-#        speed, output motor current
+#        speed, output motor current; below its minimum speed, short the
+#        windings, which brakes
 #     -> motor: current times the torque constant, through the gearing, is the
 #        drive force on the car
 #
@@ -65,7 +66,8 @@ end
 # foc_run_pid_control_speed in vedderb/bldc, motor/foc_math.c), given the
 # measured motor speed `erpm` and the loop period `dt`:
 # - the setpoint moves towards the command by at most erpm_ramp * dt
-# - below vesc_min_erpm the motor is released: no current, PID memory cleared
+# - below vesc_min_erpm the PID stops (integral cleared) and the duty cycle
+#   is held at zero, which shorts the windings: see _shorted_current
 # - otherwise PID on the speed error (gains act on error / 20), the D term
 #   low-pass filtered, the output clipped to ±1, and the integral (updated
 #   after the output) clipped to ±1
@@ -76,7 +78,7 @@ function _vesc_step!(a::ActuatorState, erpm::Float64, dt::Float64, p::VehiclePar
     if abs(a.erpm_set) < p.vesc_min_erpm
         a.i_term = 0.0
         a.prev_error = error
-        a.current = 0.0
+        a.current = _shorted_current(erpm, p)
         return a
     end
     p_term = error * p.vesc_kp / 20
@@ -87,6 +89,18 @@ function _vesc_step!(a::ActuatorState, erpm::Float64, dt::Float64, p::VehiclePar
     a.i_term = clamp(a.i_term + error * p.vesc_ki * dt / 20, -1.0, 1.0)
     a.current = output * p.current_max
     return a
+end
+
+# Motor current with the windings shorted (zero duty cycle, as the VESC
+# firmware holds it below its minimum speed setpoint, "brake when set ERPM is
+# below min ERPM" in motor/mcpwm_foc.c): the back-EMF drives a braking
+# current. For a surface-magnet motor at electrical speed ω with zero applied
+# voltage, the dq equations in steady state (their time constant L/R is
+# 0.15 ms) give i_q = -ω λ R / (R² + (ω L)²).
+function _shorted_current(erpm::Float64, p::VehicleParams)
+    ω = erpm * 2pi / 60
+    R, L = p.motor_resistance, p.motor_inductance
+    return -ω * p.flux_linkage * R / (R^2 + (ω * L)^2)
 end
 
 """
