@@ -43,25 +43,30 @@ NUC5's limits from the race stack's `stack_master/config/NUC5/vesc.yaml`)
 - `accel_cmd = 2.5`, `decel_cmd = 2.5`: how fast the speed command may rise
   and fall (m/s²)
 
-**Motor controller** (a VESC running its firmware's speed control; defaults
-of the firmware, `motor/mcconf_default.h` in
-[vedderb/bldc](https://github.com/vedderb/bldc), since ForzaETH don't publish
-their VESC settings)
+**Motor controller** (a VESC running its firmware's speed control, as
+[vedderb/bldc](https://github.com/vedderb/bldc) implements it). ForzaETH
+don't publish their VESC settings, so all of these but `erpm_gain` come from
+one published configuration of an F1TENTH car's VESC: `vesc1_apr9`
+(`vesc/config/vesc1_apr9/vesc_mcconf.xml` in
+[TeoIlie/F1TENTH_System](https://github.com/TeoIlie/F1TENTH_System)). It is
+the only published one for the stock F1TENTH motor (the motor of the stock
+`f1tenth_original` configuration, detected again) on firmware that can run
+ForzaETH's commands: braking in speed control and ERPM up to 100,000.
+Its speed loop settings are the firmware's defaults but the derivative filter.
 
 - `erpm_gain = 4800.0`: electrical RPM of the motor per m/s (ForzaETH NUC5,
   `speed_to_erpm_gain`)
 - `erpm_ramp = 25000.0`: speed setpoint ramp (ERPM/s)
 - `vesc_kp = 0.004`, `vesc_ki = 0.004`, `vesc_kd = 0.0001`,
-  `vesc_kd_filter = 0.2`: speed PID gains and derivative filter
+  `vesc_kd_filter = 0.5`: speed PID gains and derivative filter
 - `vesc_min_erpm = 900.0`: below this setpoint the speed loop stops and the
   firmware holds the duty cycle at zero, shorting the windings (ERPM)
 - `vesc_rate = 1000.0`: speed loop rate (Hz)
-- `current_max = 60.0`: motor current limit (A)
-- `flux_linkage = 0.000776`, `motor_resistance = 0.00592`,
+- `current_max = 65.0`: motor current limit (A)
+- `flux_linkage = 0.000755263`, `motor_resistance = 0.006`,
   `motor_inductance = 8.6e-7`: the motor's flux linkage (Wb), winding
-  resistance (Ω) and inductance (H), from the stock F1TENTH VESC
-  configuration (`vesc/config/f1tenth_original/vesc_mcconf.xml` in
-  [TeoIlie/F1TENTH_System](https://github.com/TeoIlie/F1TENTH_System))
+  resistance (Ω) and inductance (H), as the VESC's motor detection
+  measured them
 
 **LiDAR** (the Hokuyo UST-10LX the stock F1TENTH stack drives with
 `urg_node`; Hokuyo's specification C-42-04077)
@@ -118,12 +123,12 @@ Base.@kwdef struct VehicleParams
     vesc_kp::Float64 = 0.004
     vesc_ki::Float64 = 0.004
     vesc_kd::Float64 = 0.0001
-    vesc_kd_filter::Float64 = 0.2
+    vesc_kd_filter::Float64 = 0.5
     vesc_min_erpm::Float64 = 900.0
     vesc_rate::Float64 = 1000.0
-    current_max::Float64 = 60.0
-    flux_linkage::Float64 = 0.000776
-    motor_resistance::Float64 = 0.00592
+    current_max::Float64 = 65.0
+    flux_linkage::Float64 = 0.000755263
+    motor_resistance::Float64 = 0.006
     motor_inductance::Float64 = 8.6e-7
     scan_rate::Float64 = 40.0
     scan_noise::Float64 = 0.03
