@@ -168,20 +168,26 @@ run NUC5:
    (±0.4189 rad, ±3.2 rad/s).
 3. **VESC speed loop**, as its firmware runs it at 1 kHz: the speed command
    (4800 ERPM per m/s) becomes a setpoint ramped at 25,000 ERPM/s; a PID on
-   the motor speed sets the motor current, up to ±60 A; below 900 ERPM the
-   motor is released. The ramp, gains and limits are the firmware's defaults
+   the motor speed sets the motor current, up to ±60 A. Below a 900 ERPM
+   setpoint the PID stops and the firmware holds the duty cycle at zero,
+   which shorts the windings: the back-EMF drives a braking current
+   (`-ω λ R / (R² + (ω L)²)`), so a stop command brings the car to rest
+   instead of letting it coast. The ramp, gains and limits are the firmware's defaults
    ([vedderb/bldc](https://github.com/vedderb/bldc)), since ForzaETH don't
    publish their VESC settings. The loop is reimplemented from the firmware's
    behavior; no firmware code (GPL-3.0) is copied.
 4. **Motor**: drive force = `1.5 * flux_linkage * erpm_gain * 2π/60` per amp
    (the standard torque of a permanent-magnet motor under field-oriented
    control, carried through the gearing), 0.585 N/A, so 35 N (10 m/s²) at
-   60 A. The flux linkage, 0.000776 Wb, is the stock F1TENTH VESC
+   60 A. The flux linkage, 0.000776 Wb, and the winding resistance and
+   inductance, 5.92 mΩ and 0.86 µH, are the stock F1TENTH VESC
    configuration's (`f1tenth_original` in
    [TeoIlie/F1TENTH_System](https://github.com/TeoIlie/F1TENTH_System)).
 
 Assumptions where nothing is published: no drivetrain losses, no motor or
-wheel inertia, no battery sag, and the VESC sees the car's forward speed as
+wheel inertia, no battery sag, no VESC faults (stopping hard with the
+limiter's deceleration lifted can short more than the VESC's 130 A fault
+current), and the VESC sees the car's forward speed as
 the motor speed (there is no wheel-slip state). The example's pure pursuit
 now steers with this car's wheelbase and needed retuning for the servo lag:
 see `WORK` in [examples/waypoint_follow.jl](examples/waypoint_follow.jl).

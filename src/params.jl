@@ -53,11 +53,14 @@ their VESC settings)
 - `erpm_ramp = 25000.0`: speed setpoint ramp (ERPM/s)
 - `vesc_kp = 0.004`, `vesc_ki = 0.004`, `vesc_kd = 0.0001`,
   `vesc_kd_filter = 0.2`: speed PID gains and derivative filter
-- `vesc_min_erpm = 900.0`: below this setpoint the motor is released (ERPM)
+- `vesc_min_erpm = 900.0`: below this setpoint the speed loop stops and the
+  firmware holds the duty cycle at zero, shorting the windings (ERPM)
 - `vesc_rate = 1000.0`: speed loop rate (Hz)
 - `current_max = 60.0`: motor current limit (A)
-- `flux_linkage = 0.000776`: motor flux linkage (Wb), from the stock F1TENTH
-  VESC configuration (`vesc/config/f1tenth_original/vesc_mcconf.xml` in
+- `flux_linkage = 0.000776`, `motor_resistance = 0.00592`,
+  `motor_inductance = 8.6e-7`: the motor's flux linkage (Wb), winding
+  resistance (Ω) and inductance (H), from the stock F1TENTH VESC
+  configuration (`vesc/config/f1tenth_original/vesc_mcconf.xml` in
   [TeoIlie/F1TENTH_System](https://github.com/TeoIlie/F1TENTH_System))
 
 **LiDAR** (the Hokuyo UST-10LX the stock F1TENTH stack drives with
@@ -120,6 +123,8 @@ Base.@kwdef struct VehicleParams
     vesc_rate::Float64 = 1000.0
     current_max::Float64 = 60.0
     flux_linkage::Float64 = 0.000776
+    motor_resistance::Float64 = 0.00592
+    motor_inductance::Float64 = 8.6e-7
     scan_rate::Float64 = 40.0
     scan_noise::Float64 = 0.03
     C_roll::Float64 = 0.0
