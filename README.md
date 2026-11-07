@@ -212,6 +212,17 @@ range noise σ = 30 mm (`scan_noise`, the datasheet's bound σ < 30 mm; its
 ±40 mm accuracy offset is not modeled). Python takes 1080 beams over 4.7
 rad, all at once, every step, with 10 mm noise.
 
+- **Range.** The specification guarantees 0.06 to 10 m on a white target
+  and 0.06 to 4 m at 10 % reflectance (30 m at most). Beams are traced out to
+  `scan_range` = 10 m (set 4 m for dark walls); a beam that reaches no wall
+  within it reads 65.533 m, and one closer than 21 mm reads 0.004 m: the
+  sensor's error outputs (65533 and 4, in mm), without noise. Python traces
+  to 30 m and reads 30 m, with noise, for a beam that reaches nothing.
+- **Not modeled:** the ±40 mm accuracy offset, millimeter rounding (both
+  under the noise), dropouts on dark or shiny surfaces short of
+  `scan_range`, mixed returns at edges, interference from other LiDARs, and
+  sunlight. Ranges come from ray marching on the map's grid, so they land
+  within about a cell of the true distance.
 - **Mounting.** NUC5 carries it 0.27 m ahead of the rear axle (`lidar_x`,
   from the race stack's `static_transforms.yaml`), just ahead of the front
   axle: `lidar_dist`, measured from the center of gravity, defaults to
@@ -251,8 +262,9 @@ the 90° behind the car, uses only the forward speed, lets a wall reach
   different keys; `pid`, `accl_constraints` and `vehicle_dynamics_ks` are
   gone, and `vehicle_dynamics_st` takes the motor's drive acceleration and no
   longer takes Python's positional parameter list.
-- The LiDAR (1081 beams, 270°, 40 Hz sweep, 30 mm noise, mounted where
-  NUC5 carries it, `obs.scan_times`) and wall collisions (the body against the map every sub-step, heading
+- The LiDAR (1081 beams, 270°, 40 Hz sweep, 30 mm noise, 10 m detection
+  range with the sensor's error outputs, mounted where NUC5 carries it,
+  `obs.scan_times`) and wall collisions (the body against the map every sub-step, heading
   kept on a crash; see [Vehicle model changes](#vehicle-model-changes)).
   `check_ttc!` is gone; `check_ttc` remains.
 - Collisions with walls and other cars follow body sizes set by

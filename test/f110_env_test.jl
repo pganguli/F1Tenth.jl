@@ -135,6 +135,25 @@ end
     @test done && env.collisions == [1.0] && env.obs.linear_vels_x == [0.0]
 end
 
+@testset "LiDAR detection range and error outputs" begin
+    # the specification's error outputs: no echo within scan_range reads
+    # 65.533 m (no noise), valid distances are within range
+    env = F110Env(map=EXAMPLE_MAP, map_ext=".png", num_agents=1)
+    obs, _, _, _ = reset!(env, [0.7 0.0 1.37])
+    scan = obs.scans[1]
+    far = scan .== F1Tenth.LIDAR_NO_ECHO
+    @test any(far) && all(scan[.!far] .< env.params.scan_range + 0.2)
+    # with the 30 m maximum detection distance, those beams find walls
+    long = F110Env(map=EXAMPLE_MAP, map_ext=".png", num_agents=1, params=VehicleParams(scan_range=30.0))
+    obs, _, _, _ = reset!(long, [0.7 0.0 1.37])
+    @test all(10.0 .< obs.scans[1][far] .< 30.2)
+    # too close: under 21 mm reads 0.004 m
+    car = env.sim.agents[1]
+    car.current_scan[1:4] .= [0.01, 0.5, 40.0, 0.03]
+    car.scan_rng = nothing   # no noise
+    @test F1Tenth._sensor_output!(car)[1:4] == [F1Tenth.LIDAR_TOO_CLOSE, 0.5, F1Tenth.LIDAR_NO_ECHO, 0.03]
+end
+
 @testset "LiDAR sweep" begin
     # the LiDAR at the pose, so its scans compare with the scan simulator's
     env = F110Env(map=EXAMPLE_MAP, map_ext=".png", num_agents=1, lidar_dist=0.0)

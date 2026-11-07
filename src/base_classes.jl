@@ -31,7 +31,14 @@ LidarGeometry(num_beams::Int, fov::Float64, scan_ang_incr::Float64) =
 const LIDAR_BEAMS = 1081
 const LIDAR_FOV = 3pi / 2
 const LIDAR_THETA_DIS = 14400
-_lidar_scan_simulator(num_beams=LIDAR_BEAMS, fov=LIDAR_FOV) = ScanSimulator2D(num_beams, fov; theta_dis=LIDAR_THETA_DIS)
+# What the sensor outputs for a measurement error (the specification's
+# "Measurement Data"): 4 mm for a distance under 21 mm, and 65533 mm when
+# no object is in range or its reflectivity is too low.
+const LIDAR_MIN_RANGE = 0.021
+const LIDAR_TOO_CLOSE = 0.004
+const LIDAR_NO_ECHO = 65.533
+_lidar_scan_simulator(num_beams=LIDAR_BEAMS, fov=LIDAR_FOV; max_range=30.0) =
+    ScanSimulator2D(num_beams, fov; theta_dis=LIDAR_THETA_DIS, max_range)
 
 """
     RaceCar(params, seed; is_ego=false, time_step=0.01, num_beams=1081, fov=3π/2,
@@ -82,7 +89,7 @@ end
 function RaceCar(params::VehicleParams, seed::Integer; is_ego::Bool=false, time_step::Real=0.01,
     num_beams::Integer=LIDAR_BEAMS, fov::Real=LIDAR_FOV, integrator::Integrator.T=Integrator.Euler,
     lidar_dist::Real=params.lidar_x - params.lr, lidar_sweep::Bool=true,
-    scan_simulator::ScanSimulator2D=_lidar_scan_simulator(num_beams, fov),
+    scan_simulator::ScanSimulator2D=_lidar_scan_simulator(num_beams, fov; max_range=params.scan_range),
     lidar::LidarGeometry=LidarGeometry(Int(num_beams), Float64(fov), get_increment(scan_simulator)))
     return RaceCar(params, seed, is_ego, time_step, num_beams, fov, integrator, lidar_dist, zero(State), Pose[],
         ActuatorState(), false, Xoshiro(seed), scan_simulator, lidar, zeros(num_beams), zeros(num_beams), lidar_sweep, 0.0, 0.0, false, 0.0, 0.0, sizehint!(Pose[], 64), false, false, 0.0,
@@ -124,7 +131,7 @@ function reset!(car::RaceCar, pose)
     if car.scan_simulator.map !== nothing
         car.scan_origin = _lidar_pose(car, _pose(car.state))
         get_scan!(car.current_scan, car.scan_simulator, car.scan_origin)
-        _add_scan_noise!(car)
+        _sensor_output!(car)
         car.scan_new = true
     end
     return car
@@ -235,7 +242,7 @@ function update_pose!(car::RaceCar, raw_steer::Real, vel::Real)
     car.sweep_done || return car.current_scan
     car.sweep_done = false
     _trace_sweep!(car)
-    _add_scan_noise!(car)
+    _sensor_output!(car)
     car.scan_new, car.scan_time = true, car.sweep_start
     return car.current_scan
 end
@@ -243,12 +250,20 @@ end
 # Seconds the LiDAR takes to sweep its field of view.
 _sweep_time(car::RaceCar) = car.fov / 2pi / car.params.scan_rate
 
-function _add_scan_noise!(car::RaceCar)
-    car.scan_rng === nothing && return car.current_scan
-    noise = randn!(car.scan_rng, car.noise)   # drawn in one batch
-    out, sd = car.current_scan, car.params.scan_noise
+# The traced distances as the sensor reports them: range noise on valid
+# distances; the error outputs for one too close, or past `scan_range` (the
+# tracer stops there and returns it).
+function _sensor_output!(car::RaceCar)
+    out, sd, far = car.current_scan, car.params.scan_noise, car.scan_simulator.max_range
+    if car.scan_rng === nothing
+        fill!(car.noise, 0.0)
+    else
+        randn!(car.scan_rng, car.noise)   # drawn in one batch
+    end
+    noise = car.noise
     @inbounds @simd for i in eachindex(out)
-        out[i] += sd * noise[i]
+        d = out[i]
+        out[i] = ifelse(d >= far, LIDAR_NO_ECHO, ifelse(d < LIDAR_MIN_RANGE, LIDAR_TOO_CLOSE, d + sd * noise[i]))
     end
     return out
 end
@@ -383,7 +398,7 @@ function Simulator(params, num_agents::Integer, seed::Integer; time_step::Real=0
     params = convert(VehicleParams, params)
     lidar_dist = something(lidar_dist, params.lidar_x - params.lr)
     n = Int(num_agents)
-    scan_sim = _lidar_scan_simulator()
+    scan_sim = _lidar_scan_simulator(; max_range=params.scan_range)
     lidar = LidarGeometry(LIDAR_BEAMS, LIDAR_FOV, get_increment(scan_sim))
     agents = [RaceCar(params, seed; is_ego=(i == ego_idx), time_step=time_step, integrator=integrator,
         lidar_dist=lidar_dist, lidar_sweep=lidar_sweep, scan_simulator=scan_sim, lidar=lidar) for i in 1:n]

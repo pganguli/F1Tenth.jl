@@ -82,6 +82,12 @@ Its speed loop settings are the firmware's defaults but the derivative filter.
 - `scan_noise = 0.03`: standard deviation of the range noise (m); the
   datasheet's repeatability bound, σ < 30 mm (white target, factory
   conditions), the only figure it publishes
+- `scan_range = 10.0`: detection range (m): the specification's 0.06 to
+  10 m on white Kent sheet (0.06 to 4 m at 10 % diffuse reflectance; set 4.0
+  for dark walls; 30 m at most). A beam that reaches no wall within it reads
+  65.533 m, and one closer than 21 mm reads 0.004 m: the error outputs the
+  specification lists (65533 and 4, in mm). Noise is added only to valid
+  distances
 - `lidar_x = 0.27`: how far the LiDAR sits ahead of the rear axle (m): race
   stack, NUC5's `static_transforms.yaml`, `base_link` (the rear axle's
   center) to `laser`. The environment's `lidar_dist`, measured from the
@@ -144,6 +150,7 @@ Base.@kwdef struct VehicleParams
     motor_inductance::Float64 = 8.6e-7
     scan_rate::Float64 = 40.0
     scan_noise::Float64 = 0.03
+    scan_range::Float64 = 10.0
     lidar_x::Float64 = 0.27
     C_roll::Float64 = 0.0
     CdA::Float64 = 0.0
