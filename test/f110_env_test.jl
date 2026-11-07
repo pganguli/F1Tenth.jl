@@ -83,7 +83,7 @@
     end
 end
 
-@testset "LiDAR at scan_rate, wall check every step" begin
+@testset "LiDAR at scan_rate" begin
     env = F110Env(map=EXAMPLE_MAP, map_ext=".png", num_agents=1)
     reset!(env, [0.7 0.0 1.37])
     # 100 steps of 10 ms at 40 Hz: after the reset's scan, sweeps start every
@@ -97,24 +97,42 @@ end
     end
     @test fresh == 39
     @test env.obs.scan_times[1] ≈ 0.975   # stamped at the first beam
+end
 
-    # the wall check skips the scan only when no beam could trigger: same
-    # answer as always scanning, at random poses and speeds near the walls
-    car = env.sim.agents[1]
-    sim = car.scan_simulator
-    rng = F1Tenth.Xoshiro(3)
-    same, hits = true, 0
-    for _ in 1:3000
-        x, y, θ, v = 0.7 + 3 * randn(rng), 6 * rand(rng) - 3, 2pi * rand(rng), 8 * randn(rng)
-        car.state = F1Tenth.State(x, y, 0.0, v, θ, 0.0, 0.0)
-        pose = F1Tenth._lidar_pose(car, F1Tenth._pose(car.state))
-        gated = F1Tenth.check_walls!(car)
-        full = check_ttc(get_scan!(car.truth_scan, sim, pose), v, car.lidar.scan_angles, car.lidar.cosines,
-            car.lidar.side_distances, car.ttc_thresh)
-        same &= gated == full
-        hits += gated
+@testset "wall collisions: exact body against the map" begin
+    env = F110Env(map=EXAMPLE_MAP, map_ext=".png", num_agents=1)
+    m = env.sim.scan_simulator.map
+    res = m.resolution
+    # brute force: is any point of a fine grid over the body in a wall cell?
+    function sampled(x, y, θ, len, wid)
+        s, c = sincos(θ)
+        for u in range(-len / 2, len / 2; length=150), v in range(-wid / 2, wid / 2; length=80)
+            px, py = x + u * c - v * s - m.origin[1], y + u * s + v * c - m.origin[2]
+            col, row = floor(Int, px / res), floor(Int, py / res)
+            0 <= col < size(m.dt, 2) && 0 <= row < size(m.dt, 1) && m.dt[row+1, col+1] == 0 && return true
+        end
+        return false
     end
-    @test same && hits > 0   # and some of the poses did collide
+    # sampling can miss slivers thinner than its spacing (4 mm here), so the
+    # exact check must agree with it on a slightly smaller and larger body
+    rng = F1Tenth.Xoshiro(3)
+    agree, hits = true, 0
+    for _ in 1:3000
+        x, y, θ = 0.7 + 3 * randn(rng), 6 * rand(rng) - 3, 2pi * rand(rng)
+        hit = F1Tenth.body_hits_wall(m, x, y, θ, 0.58, 0.31)
+        agree &= (!sampled(x, y, θ, 0.58 - 0.008, 0.31 - 0.008) || hit) && (sampled(x, y, θ, 0.58 + 0.008, 0.31 + 0.008) || !hit)
+        hits += hit
+    end
+    @test agree && 100 < hits < 2900
+
+    # all around the car: reversing into a wall is caught (the LiDAR can't see behind)
+    reset!(env, [0.7 0.0 1.37])
+    done = false
+    for _ in 1:2000
+        _, _, done, _ = step!(env, [0.0 -2.0])
+        done && break
+    end
+    @test done && env.collisions == [1.0] && env.obs.linear_vels_x == [0.0]
 end
 
 @testset "LiDAR sweep" begin

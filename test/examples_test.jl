@@ -74,9 +74,8 @@ const GAINS = [W.WORK["vgain"], 0.1]   # ego at the example's speed, opponent sl
         drive(env, [START; opp_start], obs -> pursuit(obs, GAINS); max_steps=600, events=events)
         @test seen == [DEFAULT_PARAMS, VehicleParams(slippery)]
         @test all(car.params == VehicleParams(heavy) for car in env.sim.agents)
-        # car-car collisions and the wall check use the new body (Python keeps the old one)
+        # car-car collisions use the new body (Python keeps the old one)
         @test body[1] ≈ hypot(0.8, 0.5)
-        @test env.sim.agents[2].lidar.side_distances[541] ≈ 0.29   # the heavy body's front, straight ahead
     end
 
     # the planner pieces match Python's numba helpers on a simple case

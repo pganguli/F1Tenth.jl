@@ -50,10 +50,6 @@ end
 
 _is_rotated(sim) = !(sim.orig_c == 1.0 && sim.orig_s == 0.0)
 
-# The distance map's value at a world point.
-_distance_to_obstacle(sim, x::Float64, y::Float64) =
-    _is_rotated(sim) ? DTLookup{true}(sim)(x, y) : DTLookup{false}(sim)(x, y)
-
 @inline function (L::DTLookup{Rotated})(x::Float64, y::Float64) where {Rotated}
     x_trans = x - L.ox
     y_trans = y - L.oy

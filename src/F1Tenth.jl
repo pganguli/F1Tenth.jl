@@ -41,7 +41,7 @@ export F110Env, Observation, step!, reset!, render!, update_map!, update_params!
 export EnvRenderer, ScoreLabel
 # base_classes
 export Integrator, VehicleParams, Simulator, RaceCar, update_pose!, update_scan!, update_opp_poses!,
-    check_ttc!, ray_cast_agents!, check_collision!, set_map!
+    ray_cast_agents!, check_collision!, set_map!
 # dynamic_models
 export steering_constraint, vehicle_dynamics_st, drive_force_per_amp
 # collision_models

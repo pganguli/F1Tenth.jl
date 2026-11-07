@@ -28,13 +28,12 @@ ScoreLabel
 ```@docs
 Simulator
 RaceCar
-F1Tenth.check_walls!
+F1Tenth.body_hits_wall
 Integrator
 VehicleParams
 update_pose!
 update_scan!
 update_opp_poses!
-check_ttc!
 ray_cast_agents!
 check_collision!
 set_map!
