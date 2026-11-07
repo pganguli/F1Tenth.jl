@@ -82,6 +82,10 @@ Its speed loop settings are the firmware's defaults but the derivative filter.
 - `scan_noise = 0.03`: standard deviation of the range noise (m); the
   datasheet's repeatability bound, σ < 30 mm (white target, factory
   conditions), the only figure it publishes
+- `lidar_x = 0.27`: how far the LiDAR sits ahead of the rear axle (m): race
+  stack, NUC5's `static_transforms.yaml`, `base_link` (the rear axle's
+  center) to `laser`. The environment's `lidar_dist`, measured from the
+  center of gravity, defaults to `lidar_x - lr`
 
 **Resistance** (off: no identified values for an F1TENTH car have been
 published; set them from a coast-down test of your own car)
@@ -140,6 +144,7 @@ Base.@kwdef struct VehicleParams
     motor_inductance::Float64 = 8.6e-7
     scan_rate::Float64 = 40.0
     scan_noise::Float64 = 0.03
+    lidar_x::Float64 = 0.27
     C_roll::Float64 = 0.0
     CdA::Float64 = 0.0
     width::Float64 = 0.228

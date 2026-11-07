@@ -35,7 +35,7 @@ _lidar_scan_simulator(num_beams=LIDAR_BEAMS, fov=LIDAR_FOV) = ScanSimulator2D(nu
 
 """
     RaceCar(params, seed; is_ego=false, time_step=0.01, num_beams=1081, fov=3π/2,
-            integrator=Integrator.Euler, lidar_dist=0.0, lidar_sweep=true)
+            integrator=Integrator.Euler, lidar_dist=params.lidar_x - params.lr, lidar_sweep=true)
 
 One vehicle: the vehicle model, its low-level actuator chain (command
 limiter, steering servo, VESC speed loop; see [`F1Tenth.actuate!`](@ref)) and a
@@ -81,7 +81,8 @@ end
 
 function RaceCar(params::VehicleParams, seed::Integer; is_ego::Bool=false, time_step::Real=0.01,
     num_beams::Integer=LIDAR_BEAMS, fov::Real=LIDAR_FOV, integrator::Integrator.T=Integrator.Euler,
-    lidar_dist::Real=0.0, lidar_sweep::Bool=true, scan_simulator::ScanSimulator2D=_lidar_scan_simulator(num_beams, fov),
+    lidar_dist::Real=params.lidar_x - params.lr, lidar_sweep::Bool=true,
+    scan_simulator::ScanSimulator2D=_lidar_scan_simulator(num_beams, fov),
     lidar::LidarGeometry=LidarGeometry(Int(num_beams), Float64(fov), get_increment(scan_simulator)))
     return RaceCar(params, seed, is_ego, time_step, num_beams, fov, integrator, lidar_dist, zero(State), Pose[],
         ActuatorState(), false, Xoshiro(seed), scan_simulator, lidar, zeros(num_beams), zeros(num_beams), lidar_sweep, 0.0, 0.0, false, 0.0, 0.0, sizehint!(Pose[], 64), false, false, 0.0,
@@ -357,7 +358,7 @@ Base.copy(o::Observation) = Observation((deepcopy(getfield(o, f)) for f in field
 
 """
     Simulator(params, num_agents, seed; time_step=0.01, ego_idx=1,
-              integrator=Integrator.RK4, lidar_dist=0.0, lidar_sweep=true)
+              integrator=Integrator.RK4, lidar_dist=nothing, lidar_sweep=true)
 
 All the cars of an environment and their interactions. Cars are numbered
 from 1.
@@ -378,8 +379,9 @@ mutable struct Simulator
 end
 
 function Simulator(params, num_agents::Integer, seed::Integer; time_step::Real=0.01, ego_idx::Integer=1,
-    integrator::Integrator.T=Integrator.RK4, lidar_dist::Real=0.0, lidar_sweep::Bool=true)
+    integrator::Integrator.T=Integrator.RK4, lidar_dist::Union{Nothing,Real}=nothing, lidar_sweep::Bool=true)
     params = convert(VehicleParams, params)
+    lidar_dist = something(lidar_dist, params.lidar_x - params.lr)
     n = Int(num_agents)
     scan_sim = _lidar_scan_simulator()
     lidar = LidarGeometry(LIDAR_BEAMS, LIDAR_FOV, get_increment(scan_sim))

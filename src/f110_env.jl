@@ -25,7 +25,7 @@ const WINDOW_H = 800
 
 """
     F110Env(; seed=12345, map="vegas", map_ext=".png", params=VehicleParams(), num_agents=2,
-              timestep=0.01, ego_idx=1, integrator=Integrator.RK4, lidar_dist=0.0, lidar_sweep=true)
+              timestep=0.01, ego_idx=1, integrator=Integrator.RK4, lidar_dist=nothing, lidar_sweep=true)
 
 The F1TENTH gym environment, with the keyword arguments of Python's
 `gym.make('f110_gym:f110-v0', **kwargs)`:
@@ -42,7 +42,10 @@ The F1TENTH gym environment, with the keyword arguments of Python's
 - `timestep`: physics time step in seconds
 - `ego_idx`: index of the ego car (1-based)
 - `integrator`: `Integrator.RK4` or `Integrator.Euler`
-- `lidar_dist`: distance from the rear axle to the LiDAR
+- `lidar_dist`: how far the LiDAR sits ahead of the car's center of
+  gravity, the point the pose gives (Python's docstring says the rear axle,
+  but its code also measures from the pose); by default `params.lidar_x -
+  params.lr`, where NUC5 carries it (0.143 m)
 - `lidar_sweep` (not in Python): take each LiDAR beam from the pose at its
   own time in the sweep, as the real sensor does (`true`), or the whole scan
   from the pose at its first beam (`false`)
@@ -82,8 +85,8 @@ end
 
 function F110Env(; seed::Integer=12345, map::Union{Nothing,AbstractString}=nothing,
     map_ext::Union{Nothing,AbstractString}=nothing, params=VehicleParams(), num_agents::Integer=2,
-    timestep::Real=0.01, ego_idx::Integer=1, integrator::Integrator.T=Integrator.RK4, lidar_dist::Real=0.0,
-    lidar_sweep::Bool=true)
+    timestep::Real=0.01, ego_idx::Integer=1, integrator::Integrator.T=Integrator.RK4,
+    lidar_dist::Union{Nothing,Real}=nothing, lidar_sweep::Bool=true)
     1 <= ego_idx <= num_agents || throw(ArgumentError("ego_idx must be in 1:$num_agents, got $ego_idx"))
     map_name = map === nothing ? "vegas" : String(map)
     if haskey(BUILTIN_MAPS, map_name)
@@ -97,6 +100,7 @@ function F110Env(; seed::Integer=12345, map::Union{Nothing,AbstractString}=nothi
         map_ext = something(map_ext, ".png")
     end
     params = convert(VehicleParams, params)
+    lidar_dist = something(lidar_dist, params.lidar_x - params.lr)
     n = Int(num_agents)
     # like Python, the simulator is not told the ego index: obs.ego_idx is always 1
     sim = Simulator(params, n, seed; time_step=timestep, integrator=integrator, lidar_dist=lidar_dist,

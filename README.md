@@ -212,6 +212,13 @@ range noise σ = 30 mm (`scan_noise`, the datasheet's bound σ < 30 mm; its
 ±40 mm accuracy offset is not modeled). Python takes 1080 beams over 4.7
 rad, all at once, every step, with 10 mm noise.
 
+- **Mounting.** NUC5 carries it 0.27 m ahead of the rear axle (`lidar_x`,
+  from the race stack's `static_transforms.yaml`), just ahead of the front
+  axle: `lidar_dist`, measured from the center of gravity, defaults to
+  `lidar_x - lr` = 0.143 m. Python's `lidar_dist` defaults to 0, and its
+  docstring says it is measured from the rear axle while its code measures
+  it from the center of gravity, as here.
+
 - **Sweep.** The 270° take 18.75 ms, and the car moves meanwhile: each beam
   is traced from the car's pose at its own time (to within 0.5 ms, from the
   1 ms sub-steps). Turning at 1 rad/s twists a scan by about 1°.
@@ -244,8 +251,8 @@ the 90° behind the car, uses only the forward speed, lets a wall reach
   different keys; `pid`, `accl_constraints` and `vehicle_dynamics_ks` are
   gone, and `vehicle_dynamics_st` takes the motor's drive acceleration and no
   longer takes Python's positional parameter list.
-- The LiDAR (1081 beams, 270°, 40 Hz sweep, 30 mm noise, `obs.scan_times`)
-  and wall collisions (the body against the map every sub-step, heading
+- The LiDAR (1081 beams, 270°, 40 Hz sweep, 30 mm noise, mounted where
+  NUC5 carries it, `obs.scan_times`) and wall collisions (the body against the map every sub-step, heading
   kept on a crash; see [Vehicle model changes](#vehicle-model-changes)).
   `check_ttc!` is gone; `check_ttc` remains.
 - Collisions with walls and other cars follow body sizes set by

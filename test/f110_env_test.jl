@@ -136,7 +136,8 @@ end
 end
 
 @testset "LiDAR sweep" begin
-    env = F110Env(map=EXAMPLE_MAP, map_ext=".png", num_agents=1)
+    # the LiDAR at the pose, so its scans compare with the scan simulator's
+    env = F110Env(map=EXAMPLE_MAP, map_ext=".png", num_agents=1, lidar_dist=0.0)
     reset!(env, [0.7 0.0 1.37])
     car = env.sim.agents[1]
     sim = car.scan_simulator
