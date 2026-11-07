@@ -207,16 +207,16 @@ rad, all at once, every step, with 10 mm noise.
 - Other cars are added to a scan from the middle of its sweep, at their
   poses when it is published.
 
-Wall collisions no longer ride on the observed scan: they are ground truth,
-checked every step with Python's iTTC test on a noise-free instant scan from
-the car's current pose. The scan is skipped whenever the distance map shows
-no beam could trigger, which gives the same answer (checked against always
-scanning) and, with the 40 Hz LiDAR, about halves the time per step. The
-car's outline in that test is its body (`length` × `width`), measured from
-where the LiDAR sits; Python uses a wheelbase-long box from the car's
-center, which lets a wall reach 13 cm into the nose. The check sees only the
-LiDAR's 270°, so the 90° behind the car is blind, and a crash stops the car
-where it is with its heading kept (Python zeroes it).
+**Wall collisions** are ground truth, not read off the LiDAR: after every
+1 ms sub-step the car's body (`length` × `width`, the same rectangle as for
+car-to-car collisions) is tested against the map's wall cells, exactly for
+the grid (`F1Tenth.body_hits_wall`). Away from walls one distance-map lookup
+rules a hit out; near them only the few dozen cells under the body are
+tested. On a hit the car stops where it is, keeping its heading. Python
+instead runs a time-to-collision test on the noisy LiDAR scan once per
+step, against a wheelbase-long box around the car's center: it can't see
+the 90° behind the car, uses only the forward speed, lets a wall reach
+13 cm into the nose, and zeroes the heading on a crash.
 
 ## Differences from Python
 
@@ -226,9 +226,10 @@ where it is with its heading kept (Python zeroes it).
   gone, and `vehicle_dynamics_st` takes the motor's drive acceleration and no
   longer takes Python's positional parameter list.
 - The LiDAR (1081 beams, 270°, 40 Hz sweep, 30 mm noise, `obs.scan_times`)
-  and the wall check (body outline, noise-free, heading kept on a crash;
-  see [Vehicle model changes](#vehicle-model-changes)).
-- Car-to-car collisions and the wall check follow body sizes set by
+  and wall collisions (the body against the map every sub-step, heading
+  kept on a crash; see [Vehicle model changes](#vehicle-model-changes)).
+  `check_ttc!` is gone; `check_ttc` remains.
+- Collisions with walls and other cars follow body sizes set by
   `update_params!`; Python keeps the size given at construction.
 - `render!(env)` (`:human`) runs the window in real time; Python waits 5 ms
   per frame, which only approximates it.

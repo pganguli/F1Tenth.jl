@@ -63,6 +63,47 @@ function _flipped_gray(img::AbstractMatrix)
 end
 
 # ---------------------------------------------------------------------------
+# Car against the map
+
+"""
+    body_hits_wall(map, x, y, θ, length, width) -> Bool
+
+Whether a car body, the `length` × `width` rectangle centered at `(x, y)`
+with heading `θ`, overlaps a wall cell of `map` (pixel value `<= 128`).
+Exact for the grid: the rectangle is tested against each nearby wall
+cell's square. Cells off the map are free.
+"""
+function body_hits_wall(m::MapData, x::Real, y::Real, θ::Real, length::Real, width::Real)
+    res, dt = m.resolution, m.dt
+    h, w = size(dt)
+    # the body in the map's frame, with cell (1, 1) at the origin
+    so, co = sincos(m.origin[3])
+    dx, dy = x - m.origin[1], y - m.origin[2]
+    px, py = dx * co + dy * so, -dx * so + dy * co
+    s, c = sincos(θ - m.origin[3])
+    a, b = length / 2, width / 2
+    # far from every wall: the distance map, measured between cell centers,
+    # is within res * √2 of the distance from any point of a cell
+    col, row = floor(Int, px / res), floor(Int, py / res)
+    if 0 <= col < w && 0 <= row < h && @inbounds(dt[row+1, col+1]) - res * sqrt(2) > hypot(a, b)
+        return false
+    end
+    # separating-axis test of each wall cell's square against the rectangle
+    ext_x, ext_y = a * abs(c) + b * abs(s), a * abs(s) + b * abs(c)
+    half = res / 2
+    reach = half * (abs(c) + abs(s))   # the square's half-extent along the body's axes
+    for col in max(floor(Int, (px - ext_x) / res), 0):min(floor(Int, (px + ext_x) / res), w - 1),
+        row in max(floor(Int, (py - ext_y) / res), 0):min(floor(Int, (py + ext_y) / res), h - 1)
+        @inbounds dt[row+1, col+1] == 0 || continue
+        qx, qy = (col + 0.5) * res - px, (row + 0.5) * res - py
+        (abs(qx) > half + ext_x || abs(qy) > half + ext_y) && continue
+        (abs(qx * c + qy * s) > a + reach || abs(qy * c - qx * s) > b + reach) && continue
+        return true
+    end
+    return false
+end
+
+# ---------------------------------------------------------------------------
 # Distance transform
 
 """
