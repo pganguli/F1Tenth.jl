@@ -61,10 +61,13 @@ their VESC settings)
   [TeoIlie/F1TENTH_System](https://github.com/TeoIlie/F1TENTH_System))
 
 **LiDAR** (the Hokuyo UST-10LX the stock F1TENTH stack drives with
-`urg_node`; Hokuyo's datasheet gives a 25 ms scan at 2400 rpm)
+`urg_node`; Hokuyo's specification C-42-04077)
 
-- `scan_rate = 40.0`: scans per second; the car sees the latest scan until
-  the next one
+- `scan_rate = 40.0`: scans per second (25 ms per revolution at 2400 rpm);
+  the car sees the latest scan until the next one
+- `scan_noise = 0.03`: standard deviation of the range noise (m); the
+  datasheet's repeatability bound, σ < 30 mm (white target, factory
+  conditions), the only figure it publishes
 
 **Resistance** (off: no identified values for an F1TENTH car have been
 published; set them from a coast-down test of your own car)
@@ -118,6 +121,7 @@ Base.@kwdef struct VehicleParams
     current_max::Float64 = 60.0
     flux_linkage::Float64 = 0.000776
     scan_rate::Float64 = 40.0
+    scan_noise::Float64 = 0.03
     C_roll::Float64 = 0.0
     CdA::Float64 = 0.0
     width::Float64 = 0.31

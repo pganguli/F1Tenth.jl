@@ -186,19 +186,37 @@ the motor speed (there is no wheel-slip state). The example's pure pursuit
 now steers with this car's wheelbase and needed retuning for the servo lag:
 see `WORK` in [examples/waypoint_follow.jl](examples/waypoint_follow.jl).
 
-**LiDAR.** Python scans every step. The stock F1TENTH LiDAR, a Hokuyo
-UST-10LX, scans every 25 ms (its datasheet), so the car scans at
-`scan_rate` = 40 Hz, from its pose at the scan time (on the 1 ms sub-steps),
-and the observation holds the latest scan in between. A scan is taken in one
-instant: the real sensor sweeps its 270° over about 19 ms, during which the
-car moves, and that distortion is not modeled. Other cars are added to a
-scan only when it is taken.
+**LiDAR.** The car carries the stock F1TENTH LiDAR, a Hokuyo UST-10LX,
+as its specification (C-42-04077) describes it: 1081 beams over 270°, 0.25°
+apart, swept counterclockwise once every 25 ms (`scan_rate` = 40 Hz), with
+range noise σ = 30 mm (`scan_noise`, the datasheet's bound σ < 30 mm; its
+±40 mm accuracy offset is not modeled). Python takes 1080 beams over 4.7
+rad, all at once, every step, with 10 mm noise.
+
+- **Sweep.** The 270° take 18.75 ms, and the car moves meanwhile: each beam
+  is traced from the car's pose at its own time (to within 0.5 ms, from the
+  1 ms sub-steps). Turning at 1 rad/s twists a scan by about 1°.
+  `lidar_sweep=false` takes the whole scan from the pose at its first beam
+  instead.
+- **Timing.** A scan is published when its sweep ends and held until the
+  next. `obs.scan_times` gives the time of its first beam, as ROS stamps a
+  `LaserScan`, so labels like heading can be taken at that time.
+- **Beam directions** come from an angle table with 14400 entries (ten per
+  0.25° step), within 0.025° of exact; Python's 2000 entries snap beams by
+  up to 0.18°.
+- Other cars are added to a scan from the middle of its sweep, at their
+  poses when it is published.
 
 Wall collisions no longer ride on the observed scan: they are ground truth,
-checked every step with Python's iTTC test on a noise-free scan from the
-car's current pose. That scan is skipped whenever the distance map shows no
-beam could trigger, which gives the same answer (checked against always
-scanning) and, with the 40 Hz LiDAR, about halves the time per step.
+checked every step with Python's iTTC test on a noise-free instant scan from
+the car's current pose. The scan is skipped whenever the distance map shows
+no beam could trigger, which gives the same answer (checked against always
+scanning) and, with the 40 Hz LiDAR, about halves the time per step. The
+car's outline in that test is its body (`length` × `width`), measured from
+where the LiDAR sits; Python uses a wheelbase-long box from the car's
+center, which lets a wall reach 13 cm into the nose. The check sees only the
+LiDAR's 270°, so the 90° behind the car is blind, and a crash stops the car
+where it is with its heading kept (Python zeroes it).
 
 ## Differences from Python
 
@@ -207,8 +225,11 @@ scanning) and, with the 40 Hz LiDAR, about halves the time per step.
   different keys; `pid`, `accl_constraints` and `vehicle_dynamics_ks` are
   gone, and `vehicle_dynamics_st` takes the motor's drive acceleration and no
   longer takes Python's positional parameter list.
-- The LiDAR scans at 40 Hz and wall collisions use a noise-free scan (see
-  [Vehicle model changes](#vehicle-model-changes)).
+- The LiDAR (1081 beams, 270°, 40 Hz sweep, 30 mm noise, `obs.scan_times`)
+  and the wall check (body outline, noise-free, heading kept on a crash;
+  see [Vehicle model changes](#vehicle-model-changes)).
+- Car-to-car collisions and the wall check follow body sizes set by
+  `update_params!`; Python keeps the size given at construction.
 - `render!(env)` (`:human`) runs the window in real time; Python waits 5 ms
   per frame, which only approximates it.
 - Indices are 1-based (`ego_idx`, `update_params!(…; index)`).
@@ -228,9 +249,7 @@ scanning) and, with the 40 Hz LiDAR, about halves the time per step.
 - Choosing `Integrator.RK4` doesn't print Python's "different from previous
   versions of the gym" warning.
 
-Python's quirks are kept where they change outputs: `obs.ego_idx` is always
-1, a wall hit zeroes the car's yaw as well as its speed, and car-to-car
-collisions keep the body size given at construction.
+One Python quirk is kept: `obs.ego_idx` is always 1.
 
 ## Credits
 

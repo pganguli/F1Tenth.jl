@@ -85,10 +85,11 @@ end
 end
 
 @testset "LiDAR geometry, iTTC and car occlusion (match Python)" begin
-    sim = quiet(() -> Simulator(PY_PARAMS, 1, 12345))   # the car Python ran with
-    g = sim.agents[1].lidar
-    @test g.side_distances ≈ ref("side_distances") rtol = 1e-14
+    # Python's LiDAR layout (1080 beams over 4.7 rad); the iTTC check is fed
+    # Python's car outline, since this branch measures to the real body
+    g = F1Tenth.LidarGeometry(PY_PARAMS, 1080, 4.7, get_increment(ScanSimulator2D(1080, 4.7)))
     @test g.scan_angles ≈ ref("scan_angles") rtol = 1e-14 atol = 1e-15
+    py_sides = ref("side_distances")
 
     poses, opp, base, out = ref("raycast_poses"), ref("raycast_opp"), ref("raycast_base"), ref("raycast_out")
     for i in axes(poses, 1)
@@ -98,7 +99,21 @@ end
     @test any(ref("raycast_out") .!= ref("raycast_base"))   # the data has occlusions
 
     scans, vel, ttc = ref("ttc_scans"), ref("ttc_vel"), ref("ttc_out")
-    results = [check_ttc(scans[i, :], vel[i], g.scan_angles, g.cosines, g.side_distances, 0.005) for i in axes(scans, 1)]
+    results = [check_ttc(scans[i, :], vel[i], g.scan_angles, g.cosines, py_sides, 0.005) for i in axes(scans, 1)]
     @test results == (ttc .== 1)
     @test any(results) && !all(results)
+end
+
+@testset "LiDAR to body edge" begin
+    p = VehicleParams()   # 0.58 m × 0.31 m body
+    incr = F1Tenth.LIDAR_FOV / (F1Tenth.LIDAR_BEAMS - 1)
+    for d in (0.0, 0.1)   # LiDAR at the center, then 10 cm ahead of it
+        g = F1Tenth.LidarGeometry(p, F1Tenth.LIDAR_BEAMS, F1Tenth.LIDAR_FOV, incr, d)
+        ahead = (F1Tenth.LIDAR_BEAMS + 1) ÷ 2   # step 540, straight ahead
+        @test g.scan_angles[ahead] ≈ 0 atol = 1e-12
+        @test g.side_distances[ahead] ≈ 0.29 - d
+        @test g.side_distances[ahead+360] ≈ 0.155 atol = 1e-12   # 90° left
+        @test g.side_distances[1] ≈ min(0.155 / sin(pi / 4), (0.29 + d) / cos(pi / 4))   # 135° right, behind
+        @test g.max_side ≈ maximum(g.side_distances)
+    end
 end
