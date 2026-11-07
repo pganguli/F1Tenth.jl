@@ -21,8 +21,8 @@ end
 
     @testset "motor force constant" begin
         # 1.5 * flux linkage * motor electrical speed per m/s
-        @test drive_force_per_amp(p) ≈ 1.5 * 0.000776 * 4800 * 2pi / 60
-        @test 60 * drive_force_per_amp(p) ≈ 35.105 atol = 1e-3   # N at the current limit
+        @test drive_force_per_amp(p) ≈ 1.5 * 0.000755263 * 4800 * 2pi / 60
+        @test 65 * drive_force_per_amp(p) ≈ 37.015 atol = 1e-3   # N at the current limit
     end
 
     @testset "command limiter (ForzaETH's ActuationLimiter)" begin
