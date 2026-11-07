@@ -58,20 +58,25 @@ const GAINS = [W.WORK["vgain"], 0.1]   # ego at the example's speed, opponent sl
             lidar_dist=0.25)
         done = drive(env, START, _ -> [0.35 6.0]; max_steps=3000)
         @test done && env.collisions == [1.0]
-        @test env.obs.poses_theta == [0.0]   # as Python, yaw is zeroed on a wall hit
+        # a wall hit stops the car where it is, keeping its heading (Python zeroes it)
+        @test env.obs.linear_vels_x == [0.0] && env.obs.poses_theta[1] != 0.0
     end
     @testset "update_params! mid-run" begin
         slippery = merge(DEFAULT_DICT, Dict("mu" => 0.6, "m" => 4.5, "length" => 0.8, "width" => 0.5))
         heavy = merge(DEFAULT_DICT, Dict("m" => 5.0, "current_max" => 40.0))
         env = quiet(() -> F110Env(map=EXAMPLE_MAP, map_ext=".png", num_agents=2, seed=7))
         seen = VehicleParams[]
+        diagonal(v) = maximum(hypot((v[a] - v[b])...) for a in 1:4, b in 1:4)
+        body = Float64[]
         events = Dict(100 => (e -> update_params!(e, slippery; index=2)),
-            101 => (e -> append!(seen, [c.params for c in e.sim.agents])),
+            101 => (e -> (append!(seen, [c.params for c in e.sim.agents]); push!(body, diagonal(e.sim.vertices[2])))),
             250 => (e -> update_params!(e, heavy)))
         drive(env, [START; opp_start], obs -> pursuit(obs, GAINS); max_steps=600, events=events)
         @test seen == [DEFAULT_PARAMS, VehicleParams(slippery)]
         @test all(car.params == VehicleParams(heavy) for car in env.sim.agents)
-        @test env.sim.params == DEFAULT_PARAMS   # car-car collisions keep the initial body size
+        # car-car collisions and the wall check use the new body (Python keeps the old one)
+        @test body[1] ≈ hypot(0.8, 0.5)
+        @test env.sim.agents[2].lidar.side_distances[541] ≈ 0.29   # the heavy body's front, straight ahead
     end
 
     # the planner pieces match Python's numba helpers on a simple case
