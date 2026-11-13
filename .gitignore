@@ -3,3 +3,5 @@ examples/Manifest*.toml
 docs/Manifest*.toml
 docs/build/
 .worktrees/
+__pycache__/
+*.py[cod]
