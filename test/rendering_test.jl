@@ -64,7 +64,27 @@
         render!(env; mode=:human_fast)
     end
 
-    # closing the window makes the next render! fail, as in Python
+    # :human draws at most 60 frames a second of sim time. The last frame
+    # (:human_fast, above) was at 0.06 s: a frame at 0.07 s is skipped (no
+    # callback), one at 0.08 s is drawn, one at 0.09 s is skipped again
+    Base.invokelatest() do
+        n = calls[]
+        step!(env, [0.1 2.0; 0.0 1.0])
+        render!(env)
+        @test calls[] == n
+        step!(env, [0.1 2.0; 0.0 1.0])
+        render!(env)
+        @test calls[] == n + 1
+        step!(env, [0.1 2.0; 0.0 1.0])
+        render!(env)
+        @test calls[] == n + 1
+        # a reset moves the sim time back, which draws again
+        reset!(env, [0.0 0.0 0.0; 2.0 0.0 0.0])
+        render!(env)
+        @test calls[] == n + 2
+    end
+
+    # closing the window makes the next frame fail, as in Python
     close(r.screen)
-    @test_throws ErrorException Base.invokelatest(render!, env)
+    @test_throws ErrorException Base.invokelatest(render!, env; mode=:human_fast)
 end

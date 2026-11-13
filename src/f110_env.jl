@@ -22,6 +22,8 @@ end
 # render window size
 const WINDOW_W = 1000
 const WINDOW_H = 800
+# frames a second of sim time that render!(env; mode=:human) draws, at most
+const HUMAN_FPS = 60.0
 
 """
     F110Env(; seed=12345, map="vegas", map_ext=".png", params=VehicleParams(), num_agents=2,
@@ -81,6 +83,7 @@ mutable struct F110Env
     renderer::Union{Nothing,EnvRenderer}
     render_callbacks::Vector{Any}
     wall_start::Float64   # wall-clock time matching sim time 0, for :human pacing
+    last_frame::Float64   # sim time of the last frame drawn
 end
 
 function F110Env(; seed::Integer=12345, map::Union{Nothing,AbstractString}=nothing,
@@ -112,7 +115,7 @@ function F110Env(; seed::Integer=12345, map::Union{Nothing,AbstractString}=nothi
         s.ang_vels_z, s.collisions, lap_times, lap_counts, s.scan_times)
     return F110Env(seed, map_name, map_path, _normalize_ext(map_ext), params, n, timestep, ego_idx, integrator,
         lidar_dist, 0.0, s.collisions, lap_times, lap_counts, fill(true, n), zeros(n), fill(false, n), zeros(n),
-        zeros(n), zeros(n), one(SMatrix{2,2,Float64}), sim, obs, nothing, Any[], NaN)
+        zeros(n), zeros(n), one(SMatrix{2,2,Float64}), sim, obs, nothing, Any[], NaN, -Inf)
 end
 
 Base.show(io::IO, env::F110Env) = print(io, "F110Env(map=\"", env.map_name, "\", num_agents=", env.num_agents,
@@ -219,14 +222,27 @@ end
     render!(env; mode=:human)
 
 Draw the environment in a window (needs `using GLMakie`). Drag to pan, scroll
-to zoom. `:human` paces the window to real time: each frame waits until the
-wall clock catches up with the sim clock (Python just waits 5 ms per frame).
-If drawing falls behind by more than 0.1 s, or after a reset, the clocks are
-lined up again rather than rushed. `:human_fast` never waits.
+to zoom.
+
+- `:human` shows the race in real time. Each frame waits until the wall
+  clock is at the sim time. (Python only waits 5 ms for each frame.) If the
+  drawing is more than 0.1 s late, or after a reset, the two clocks start
+  again from the same time. The window does not try to catch up. The window
+  draws a maximum of $(Int(HUMAN_FPS)) frames for each second of sim time. If
+  the last frame is more recent than that, `render!` does nothing and does
+  not call the render callbacks. Thus a small `timestep` does not make the
+  race slower than real time.
+- `:human_fast` draws a frame for each call and does not wait.
+
+If you close the window, the next frame that `render!` draws causes an error.
 """
 function render!(env::F110Env; mode::Union{Symbol,AbstractString}=:human)
     mode = Symbol(mode)
     mode in (:human, :human_fast) || throw(ArgumentError("mode must be :human or :human_fast, got :$mode"))
+    # at most HUMAN_FPS frames a second of sim time (a reset moves the sim time back)
+    mode === :human && env.renderer !== nothing &&
+        env.last_frame <= env.current_time < env.last_frame + 1 / HUMAN_FPS - 1e-9 && return nothing
+    env.last_frame = env.current_time
     if env.renderer === nothing
         env.renderer = _make_renderer(WINDOW_W, WINDOW_H)
         _renderer_update_map!(env.renderer, env.sim.scan_simulator.map)

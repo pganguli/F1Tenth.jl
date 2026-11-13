@@ -44,8 +44,9 @@ function F1Tenth._make_renderer(width::Int, height::Int)
     text!(fig.scene, Point2f(8, 8); text=st.fps_text, space=:pixel, fontsize=24, color=RGBAf(1, 1, 1, 0.5),
         align=(:left, :bottom))
 
+    scalefactor = _scalefactor()
     screen = GLMakie.Screen(; title="F1Tenth Gym", vsync=false, framerate=1000.0, focus_on_show=false,
-        scalefactor=_scalefactor())
+        scalefactor=scalefactor, px_per_unit=_px_per_unit(scalefactor))
     display(screen, fig)
     r = EnvRenderer(width, height, -width / 2, width / 2, -height / 2, height / 2, 1.2, width, height, label, 1,
         nothing, Any[], fig, ax, screen, st)
@@ -69,6 +70,17 @@ function _scalefactor()
     width_mm > 0 || return 1.0
     dpi = GLMakie.GLFW.GetVideoMode(monitor).width / (width_mm / 25.4)
     return max(1.0, round(dpi / 96))
+end
+
+# Pixels drawn per window unit. If you set a value with
+# GLMakie.activate!(px_per_unit=...), the window uses it. If not, the window
+# uses the HiDPI scale, but not more than 2. At 3 (a typical HiDPI display), a
+# frame takes about 18 ms. This is too slow for 60 frames a second. At 2, a
+# frame takes about 10 ms. At 1, the image is blurry.
+function _px_per_unit(scalefactor)
+    configured = Makie.current_default_theme()[:GLMakie][:px_per_unit][]
+    configured isa Makie.Automatic || return configured
+    return min(scalefactor, 2.0)
 end
 
 # Window resize resets the camera to the origin at the current zoom, as in Python.
