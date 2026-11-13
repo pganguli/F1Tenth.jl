@@ -96,7 +96,7 @@ end
 # below min ERPM" in motor/mcpwm_foc.c): the back-EMF drives a braking
 # current. For a surface-magnet motor at electrical speed ω with zero applied
 # voltage, the dq equations in steady state (their time constant L/R is
-# 0.15 ms) give i_q = -ω λ R / (R² + (ω L)²).
+# 0.14 ms) give i_q = -ω λ R / (R² + (ω L)²).
 function _shorted_current(erpm::Float64, p::VehicleParams)
     ω = erpm * 2pi / 60
     R, L = p.motor_resistance, p.motor_inductance

@@ -193,10 +193,10 @@ run NUC5:
    (GPL-3.0) is copied.
 4. **Motor**: drive force = `1.5 * flux_linkage * erpm_gain * 2π/60` per amp
    (the standard torque of a permanent-magnet motor under field-oriented
-   control, carried through the gearing), 0.569 N/A, so 37 N (10.6 m/s²) at
-   65 A. The flux linkage, 0.000755 Wb, and the winding resistance and
-   inductance, 6.0 mΩ and 0.86 µH, are what the VESC's motor detection
-   measured, in the same configuration.
+   control, carried through the gearing), 0.569 N/A, so 37 N at 65 A
+   (13.3 m/s² on NUC5's 2.783 kg). The flux linkage, 0.000755 Wb, and the
+   winding resistance and inductance, 6.0 mΩ and 0.86 µH, are what the
+   VESC's motor detection measured, in the same configuration.
 
 Assumptions where nothing is published: no drivetrain losses, no motor or
 wheel inertia, no battery sag, no VESC faults (stopping hard with the
