@@ -1,0 +1,5 @@
+F1Tenth.jl 234dc398eb5fe523bb9d35452e6a651acf83bdb2
+archive/python-compat ec14a0d0762b9f9ea52ef6062ca5d1edc5e15a07
+julia 1.13.0, 12 threads
+args: --maps example,Spa,Monza --mu 0.6,0.8 --out experiments/transfer/results/full
+2026-11-13T13:43:16.429: F1Tenth.jl 234dc398eb5fe523bb9d35452e6a651acf83bdb2, archive/python-compat ec14a0d0762b9f9ea52ef6062ca5d1edc5e15a07, transfer.jl sha256 2261f474791ff3c207458cb9c220e42e4dfdb36527fee8bc63ce632c35f1f48d, julia 1.13.0, 12 threads, args: --maps example,Spa,Monza --mu 0.6,0.8 --out experiments/transfer/results/full

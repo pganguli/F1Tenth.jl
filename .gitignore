@@ -5,3 +5,4 @@ docs/build/
 .worktrees/
 __pycache__/
 *.py[cod]
+experiments/transfer/.compat/

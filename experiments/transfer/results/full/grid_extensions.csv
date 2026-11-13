@@ -1,0 +1,13 @@
+map,controller,lo1,hi1,lo2,hi2
+Monza,ftg,0,7,0,0
+Monza,mpc,0,0,1,0
+Monza,mpc-lag,1,0,1,0
+Monza,pp,0,0,1,0
+Spa,ftg,0,8,0,0
+Spa,mpc,1,0,1,0
+Spa,mpc-lag,0,0,1,0
+Spa,pp,1,0,0,0
+example,ftg,0,7,1,0
+example,mpc,0,0,1,0
+example,mpc-lag,0,0,1,0
+example,pp,0,0,0,1

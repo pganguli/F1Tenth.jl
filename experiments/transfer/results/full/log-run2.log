@@ -1,0 +1,222 @@
+Conditions: strict, strict-nuc5, realistic, realistic-mu0.6, realistic-mu0.8; 12 threads; output: experiments/transfer/results/full
+
+== pp on example: 154 settings × 5 conditions in 10 s (grid extended: hi2 1)
+Rank agreement over the grid (Spearman; crashes are equal and last), and settings that finish on the row's simulator but not on the column's:
+                    strict                strict-nuc5           realistic             realistic-mu0.6       realistic-mu0.8       
+  strict            ρ= 1.00    0/101 lost  ρ= 0.43   35/101 lost  ρ=-0.08   64/101 lost  ρ=-0.11   73/101 lost  ρ=-0.09   69/101 lost  
+  strict-nuc5       ρ= 0.43    1/67  lost  ρ= 1.00    0/67  lost  ρ= 0.31   32/67  lost  ρ= 0.30   38/67  lost  ρ= 0.35   34/67  lost  
+  realistic         ρ=-0.08    4/41  lost  ρ= 0.31    6/41  lost  ρ= 1.00    0/41  lost  ρ= 0.77   11/41  lost  ρ= 0.87    6/41  lost  
+  realistic-mu0.6   ρ=-0.11    2/30  lost  ρ= 0.30    1/30  lost  ρ= 0.77    0/30  lost  ρ= 1.00    0/30  lost  ρ= 0.89    0/30  lost  
+  realistic-mu0.8   ρ=-0.09    3/35  lost  ρ= 0.35    2/35  lost  ρ= 0.87    0/35  lost  ρ= 0.89    5/35  lost  ρ= 1.00    0/35  lost  
+Tuned on (row) → raced on (column): finished races, mean two-lap time (s)
+                     lookahead, vgain  strict            strict-nuc5       realistic         realistic-mu0.6   realistic-mu0.8   
+  strict             0.80, 1.50        5/5  30.74        0/5  —            0/5  —            0/5  —            0/5  —            
+  strict-nuc5        0.80, 1.40        5/5  32.77        5/5  32.76        0/5  —            0/5  —            0/5  —            
+  realistic          1.20, 0.70        5/5  63.86        5/5  63.94        5/5  64.70        0/5  —            5/5  65.04        
+  realistic-mu0.6    1.00, 0.60        5/5  74.22        5/5  74.16        5/5  74.80        5/5  75.20        5/5  74.84        
+  realistic-mu0.8    1.20, 0.70        5/5  63.86        5/5  63.94        5/5  64.70        0/5  —            5/5  65.04        
+
+== ftg on example: 240 settings × 5 conditions in 175 s (grid extended: hi1 7, lo2 1)
+Rank agreement over the grid (Spearman; crashes are equal and last), and settings that finish on the row's simulator but not on the column's:
+                    strict                strict-nuc5           realistic             realistic-mu0.6       realistic-mu0.8       
+  strict            ρ= 1.00    0/212 lost  ρ= 0.90    3/212 lost  ρ=-0.31  103/212 lost  ρ=-0.40  123/212 lost  ρ=-0.36  114/212 lost  
+  strict-nuc5       ρ= 0.90    3/212 lost  ρ= 1.00    0/212 lost  ρ=-0.33  103/212 lost  ρ=-0.41  123/212 lost  ρ=-0.38  114/212 lost  
+  realistic         ρ=-0.31    0/109 lost  ρ=-0.33    0/109 lost  ρ= 1.00    0/109 lost  ρ= 0.77   20/109 lost  ρ= 0.87   11/109 lost  
+  realistic-mu0.6   ρ=-0.40    0/89  lost  ρ=-0.41    0/89  lost  ρ= 0.77    0/89  lost  ρ= 1.00    0/89  lost  ρ= 0.90    0/89  lost  
+  realistic-mu0.8   ρ=-0.36    0/98  lost  ρ=-0.38    0/98  lost  ρ= 0.87    0/98  lost  ρ= 0.90    9/98  lost  ρ= 1.00    0/98  lost  
+Tuned on (row) → raced on (column): finished races, mean two-lap time (s)
+                     vmax, gain        strict            strict-nuc5       realistic         realistic-mu0.6   realistic-mu0.8   
+  strict             11.00, 0.40       5/5  43.69        5/5  42.51        0/5  —            0/5  —            0/5  —            
+  strict-nuc5        11.00, 0.40       5/5  43.69        5/5  42.51        0/5  —            0/5  —            0/5  —            
+  realistic          4.50, 0.30        5/5  91.38        5/5  91.53        5/5  105.38       0/5  —            0/5  —            
+  realistic-mu0.6    4.00, 0.30        5/5  100.73       5/5  101.35       5/5  114.08       5/5  118.07       5/5  112.78       
+  realistic-mu0.8    4.00, 0.30        5/5  100.73       5/5  101.35       5/5  114.08       5/5  118.07       5/5  112.78       
+
+== mpc on example: 78 settings × 5 conditions in 344 s (grid extended: lo2 1)
+Rank agreement over the grid (Spearman; crashes are equal and last), and settings that finish on the row's simulator but not on the column's:
+                    strict                strict-nuc5           realistic             realistic-mu0.6       realistic-mu0.8       
+  strict            ρ= 1.00    0/42  lost  ρ= 0.56   14/42  lost  ρ=  NaN   42/42  lost  ρ=  NaN   42/42  lost  ρ=  NaN   42/42  lost  
+  strict-nuc5       ρ= 0.56    0/28  lost  ρ= 1.00    0/28  lost  ρ=  NaN   28/28  lost  ρ=  NaN   28/28  lost  ρ=  NaN   28/28  lost  
+  realistic         ρ=  NaN    0/0   lost  ρ=  NaN    0/0   lost  ρ=  NaN    0/0   lost  ρ=  NaN    0/0   lost  ρ=  NaN    0/0   lost  
+  realistic-mu0.6   ρ=  NaN    0/0   lost  ρ=  NaN    0/0   lost  ρ=  NaN    0/0   lost  ρ=  NaN    0/0   lost  ρ=  NaN    0/0   lost  
+  realistic-mu0.8   ρ=  NaN    0/0   lost  ρ=  NaN    0/0   lost  ρ=  NaN    0/0   lost  ρ=  NaN    0/0   lost  ρ=  NaN    0/0   lost  
+Tuned on (row) → raced on (column): finished races, mean two-lap time (s)
+                     vgain, horizon    strict            strict-nuc5       realistic         realistic-mu0.6   realistic-mu0.8   
+  strict             1.40, 0.25        5/5  33.47        0/5  —            0/5  —            0/5  —            0/5  —            
+  strict-nuc5        1.10, 0.25        5/5  41.41        5/5  41.79        0/5  —            0/5  —            0/5  —            
+  realistic          none finish       
+  realistic-mu0.6    none finish       
+  realistic-mu0.8    none finish       
+
+== mpc-lag on example: 78 settings × 5 conditions in 808 s (grid extended: lo2 1)
+Rank agreement over the grid (Spearman; crashes are equal and last), and settings that finish on the row's simulator but not on the column's:
+                    strict                strict-nuc5           realistic             realistic-mu0.6       realistic-mu0.8       
+  strict            ρ= 1.00    0/29  lost  ρ= 0.34   12/29  lost  ρ= 0.39   12/29  lost  ρ= 0.35   14/29  lost  ρ= 0.36   13/29  lost  
+  strict-nuc5       ρ= 0.34    7/24  lost  ρ= 1.00    0/24  lost  ρ= 0.81    4/24  lost  ρ= 0.61    8/24  lost  ρ= 0.77    5/24  lost  
+  realistic         ρ= 0.39    5/22  lost  ρ= 0.81    2/22  lost  ρ= 1.00    0/22  lost  ρ= 0.67    6/22  lost  ρ= 0.84    3/22  lost  
+  realistic-mu0.6   ρ= 0.35    3/18  lost  ρ= 0.61    2/18  lost  ρ= 0.67    2/18  lost  ρ= 1.00    0/18  lost  ρ= 0.82    1/18  lost  
+  realistic-mu0.8   ρ= 0.36    4/20  lost  ρ= 0.77    1/20  lost  ρ= 0.84    1/20  lost  ρ= 0.82    3/20  lost  ρ= 1.00    0/20  lost  
+Tuned on (row) → raced on (column): finished races, mean two-lap time (s)
+                     vgain, horizon    strict            strict-nuc5       realistic         realistic-mu0.6   realistic-mu0.8   
+  strict             1.00, 0.50        5/5  45.54        0/5  —            0/5  —            0/5  —            0/5  —            
+  strict-nuc5        1.00, 0.25        0/5  —            5/5  45.30        0/5  —            0/5  —            0/5  —            
+  realistic          0.90, 0.25        0/5  —            5/5  49.95        5/5  51.11        0/5  —            0/5  —            
+  realistic-mu0.6    0.70, 0.25        0/5  —            5/5  63.60        5/5  64.25        5/5  64.68        5/5  64.39        
+  realistic-mu0.8    0.80, 0.25        0/5  —            5/5  55.88        5/5  56.70        0/5  —            5/5  56.98        
+
+== LinearPolicy (ARS) on example: 3 policies × 5 conditions, 300 iterations, in 1106 s
+Tuned on (row) → raced on (column): finished races, mean two-lap time (s)
+                     trained           strict            strict-nuc5       realistic         realistic-mu0.6   realistic-mu0.8   
+  strict             3 policies        15/15  37.61      5/15  37.60       0/15  —           0/15  —           0/15  —           
+  strict-nuc5        3 policies        0/15  —           13/15  37.59      0/15  —           0/15  —           0/15  —           
+  realistic          3 policies        10/15  50.89      15/15  47.86      2/15  52.47       0/15  —           0/15  —           
+  realistic-mu0.6    3 policies        12/15  52.81      10/15  52.86      7/15  55.74       5/15  57.26       5/15  56.43       
+  realistic-mu0.8    3 policies        14/15  49.39      15/15  48.97      5/15  50.31       0/15  —           0/15  —           
+
+== pp on Spa: 156 settings × 5 conditions in 36 s (grid extended: lo1 1)
+Rank agreement over the grid (Spearman; crashes are equal and last), and settings that finish on the row's simulator but not on the column's:
+                    strict                strict-nuc5           realistic             realistic-mu0.6       realistic-mu0.8       
+  strict            ρ=  NaN    0/0   lost  ρ=  NaN    0/0   lost  ρ=  NaN    0/0   lost  ρ=  NaN    0/0   lost  ρ=  NaN    0/0   lost  
+  strict-nuc5       ρ=  NaN   17/17  lost  ρ= 1.00    0/17  lost  ρ= 0.17   14/17  lost  ρ= 0.10   15/17  lost  ρ= 0.15   14/17  lost  
+  realistic         ρ=  NaN    9/9   lost  ρ= 0.17    6/9   lost  ρ= 1.00    0/9   lost  ρ= 0.57    4/9   lost  ρ= 0.84    1/9   lost  
+  realistic-mu0.6   ρ=  NaN    8/8   lost  ρ= 0.10    6/8   lost  ρ= 0.57    3/8   lost  ρ= 1.00    0/8   lost  ρ= 0.77    1/8   lost  
+  realistic-mu0.8   ρ=  NaN   10/10  lost  ρ= 0.15    7/10  lost  ρ= 0.84    2/10  lost  ρ= 0.77    3/10  lost  ρ= 1.00    0/10  lost  
+Tuned on (row) → raced on (column): finished races, mean two-lap time (s)
+                     lookahead, vgain  strict            strict-nuc5       realistic         realistic-mu0.6   realistic-mu0.8   
+  strict             none finish       
+  strict-nuc5        0.60, 0.90        0/5  —            5/5  161.37       0/5  —            0/5  —            0/5  —            
+  realistic          1.00, 0.50        0/5  —            5/5  289.28       5/5  289.81       0/5  —            5/5  290.05       
+  realistic-mu0.6    0.80, 0.40        0/5  —            4/5  361.04       5/5  361.34       5/5  361.67       5/5  361.46       
+  realistic-mu0.8    1.00, 0.50        0/5  —            5/5  289.28       5/5  289.81       0/5  —            5/5  290.05       
+
+== ftg on Spa: 231 settings × 5 conditions in 1391 s (grid extended: hi1 8)
+Rank agreement over the grid (Spearman; crashes are equal and last), and settings that finish on the row's simulator but not on the column's:
+                    strict                strict-nuc5           realistic             realistic-mu0.6       realistic-mu0.8       
+  strict            ρ= 1.00    0/176 lost  ρ= 0.64    4/176 lost  ρ=-0.21  102/176 lost  ρ=-0.25  114/176 lost  ρ=-0.23  109/176 lost  
+  strict-nuc5       ρ= 0.64   16/188 lost  ρ= 1.00    0/188 lost  ρ=-0.33  114/188 lost  ρ=-0.35  126/188 lost  ρ=-0.34  121/188 lost  
+  realistic         ρ=-0.21    0/74  lost  ρ=-0.33    0/74  lost  ρ= 1.00    0/74  lost  ρ= 0.85   12/74  lost  ρ= 0.87    9/74  lost  
+  realistic-mu0.6   ρ=-0.25    0/62  lost  ρ=-0.35    0/62  lost  ρ= 0.85    0/62  lost  ρ= 1.00    0/62  lost  ρ= 0.90    1/62  lost  
+  realistic-mu0.8   ρ=-0.23    0/67  lost  ρ=-0.34    0/67  lost  ρ= 0.87    2/67  lost  ρ= 0.90    6/67  lost  ρ= 1.00    0/67  lost  
+Tuned on (row) → raced on (column): finished races, mean two-lap time (s)
+                     vmax, gain        strict            strict-nuc5       realistic         realistic-mu0.6   realistic-mu0.8   
+  strict             10.50, 0.40       5/5  117.70       5/5  122.96       0/5  —            0/5  —            0/5  —            
+  strict-nuc5        11.50, 0.50       0/5  —            5/5  113.45       0/5  —            0/5  —            0/5  —            
+  realistic          4.50, 0.40        5/5  260.58       5/5  261.66       5/5  283.51       0/5  —            1/5  286.85       
+  realistic-mu0.6    4.00, 0.50        5/5  292.22       5/5  292.41       5/5  307.94       5/5  307.56       5/5  308.93       
+  realistic-mu0.8    4.00, 0.40        5/5  292.29       5/5  292.63       5/5  299.66       5/5  308.39       5/5  302.95       
+
+== mpc on Spa: 78 settings × 5 conditions in 1167 s (grid extended: lo2 1)
+Rank agreement over the grid (Spearman; crashes are equal and last), and settings that finish on the row's simulator but not on the column's:
+                    strict                strict-nuc5           realistic             realistic-mu0.6       realistic-mu0.8       
+  strict            ρ= 1.00    0/33  lost  ρ= 0.43   16/33  lost  ρ=  NaN   33/33  lost  ρ=  NaN   33/33  lost  ρ=  NaN   33/33  lost  
+  strict-nuc5       ρ= 0.43    2/19  lost  ρ= 1.00    0/19  lost  ρ=  NaN   19/19  lost  ρ=  NaN   19/19  lost  ρ=  NaN   19/19  lost  
+  realistic         ρ=  NaN    0/0   lost  ρ=  NaN    0/0   lost  ρ=  NaN    0/0   lost  ρ=  NaN    0/0   lost  ρ=  NaN    0/0   lost  
+  realistic-mu0.6   ρ=  NaN    0/0   lost  ρ=  NaN    0/0   lost  ρ=  NaN    0/0   lost  ρ=  NaN    0/0   lost  ρ=  NaN    0/0   lost  
+  realistic-mu0.8   ρ=  NaN    0/0   lost  ρ=  NaN    0/0   lost  ρ=  NaN    0/0   lost  ρ=  NaN    0/0   lost  ρ=  NaN    0/0   lost  
+Tuned on (row) → raced on (column): finished races, mean two-lap time (s)
+                     vgain, horizon    strict            strict-nuc5       realistic         realistic-mu0.6   realistic-mu0.8   
+  strict             1.10, 0.25        5/5  134.37       0/5  —            0/5  —            0/5  —            0/5  —            
+  strict-nuc5        1.00, 0.25        5/5  147.13       5/5  148.02       0/5  —            0/5  —            0/5  —            
+  realistic          none finish       
+  realistic-mu0.6    none finish       
+  realistic-mu0.8    none finish       
+
+== mpc-lag on Spa: 78 settings × 5 conditions in 774 s (grid extended: lo2 1)
+Rank agreement over the grid (Spearman; crashes are equal and last), and settings that finish on the row's simulator but not on the column's:
+                    strict                strict-nuc5           realistic             realistic-mu0.6       realistic-mu0.8       
+  strict            ρ= 1.00    0/29  lost  ρ= 0.55   11/29  lost  ρ= 0.56   11/29  lost  ρ= 0.37   17/29  lost  ρ= 0.49   13/29  lost  
+  strict-nuc5       ρ= 0.55    1/19  lost  ρ= 1.00    0/19  lost  ρ= 0.79    3/19  lost  ρ= 0.58    8/19  lost  ρ= 0.69    5/19  lost  
+  realistic         ρ= 0.56    0/18  lost  ρ= 0.79    2/18  lost  ρ= 1.00    0/18  lost  ρ= 0.71    6/18  lost  ρ= 0.90    2/18  lost  
+  realistic-mu0.6   ρ= 0.37    0/12  lost  ρ= 0.58    1/12  lost  ρ= 0.71    0/12  lost  ρ= 1.00    0/12  lost  ρ= 0.80    0/12  lost  
+  realistic-mu0.8   ρ= 0.49    0/16  lost  ρ= 0.69    2/16  lost  ρ= 0.90    0/16  lost  ρ= 0.80    4/16  lost  ρ= 1.00    0/16  lost  
+Tuned on (row) → raced on (column): finished races, mean two-lap time (s)
+                     vgain, horizon    strict            strict-nuc5       realistic         realistic-mu0.6   realistic-mu0.8   
+  strict             0.90, 0.50        3/5  163.20       0/5  —            0/5  —            0/5  —            0/5  —            
+  strict-nuc5        0.80, 0.25        0/5  —            4/5  182.42       0/5  —            0/5  —            0/5  —            
+  realistic          0.60, 0.50        5/5  242.35       5/5  242.73       5/5  243.84       0/5  —            5/5  244.43       
+  realistic-mu0.6    0.50, 0.50        5/5  290.26       5/5  290.28       5/5  291.09       5/5  292.02       5/5  291.40       
+  realistic-mu0.8    0.60, 0.50        5/5  242.35       5/5  242.73       5/5  243.84       0/5  —            5/5  244.43       
+
+== LinearPolicy (ARS) on Spa: 3 policies × 5 conditions, 300 iterations, in 350 s
+Tuned on (row) → raced on (column): finished races, mean two-lap time (s)
+                     trained           strict            strict-nuc5       realistic         realistic-mu0.6   realistic-mu0.8   
+  strict             3 policies        8/15  174.24      3/15  150.17      0/15  —           0/15  —           0/15  —           
+  strict-nuc5        3 policies        0/15  —           5/15  139.76      0/15  —           0/15  —           0/15  —           
+  realistic          3 policies        0/15  —           0/15  —           0/15  —           0/15  —           0/15  —           
+  realistic-mu0.6    3 policies        0/15  —           0/15  —           0/15  —           0/15  —           0/15  —           
+  realistic-mu0.8    3 policies        0/15  —           0/15  —           0/15  —           0/15  —           0/15  —           
+
+== pp on Monza: 143 settings × 5 conditions in 3 s (grid extended: no)
+Rank agreement over the grid (Spearman; crashes are equal and last), and settings that finish on the row's simulator but not on the column's:
+                    strict                strict-nuc5           realistic             realistic-mu0.6       realistic-mu0.8       
+  strict            ρ=  NaN    0/0   lost  ρ=  NaN    0/0   lost  ρ=  NaN    0/0   lost  ρ=  NaN    0/0   lost  ρ=  NaN    0/0   lost  
+  strict-nuc5       ρ=  NaN    0/0   lost  ρ=  NaN    0/0   lost  ρ=  NaN    0/0   lost  ρ=  NaN    0/0   lost  ρ=  NaN    0/0   lost  
+  realistic         ρ=  NaN    0/0   lost  ρ=  NaN    0/0   lost  ρ=  NaN    0/0   lost  ρ=  NaN    0/0   lost  ρ=  NaN    0/0   lost  
+  realistic-mu0.6   ρ=  NaN    0/0   lost  ρ=  NaN    0/0   lost  ρ=  NaN    0/0   lost  ρ=  NaN    0/0   lost  ρ=  NaN    0/0   lost  
+  realistic-mu0.8   ρ=  NaN    0/0   lost  ρ=  NaN    0/0   lost  ρ=  NaN    0/0   lost  ρ=  NaN    0/0   lost  ρ=  NaN    0/0   lost  
+Tuned on (row) → raced on (column): finished races, mean two-lap time (s)
+                     lookahead, vgain  strict            strict-nuc5       realistic         realistic-mu0.6   realistic-mu0.8   
+  strict             none finish       
+  strict-nuc5        none finish       
+  realistic          none finish       
+  realistic-mu0.6    none finish       
+  realistic-mu0.8    none finish       
+
+== ftg on Monza: 187 settings × 5 conditions in 225 s (grid extended: hi1 4)
+Rank agreement over the grid (Spearman; crashes are equal and last), and settings that finish on the row's simulator but not on the column's:
+                    strict                strict-nuc5           realistic             realistic-mu0.6       realistic-mu0.8       
+  strict            ρ= 1.00    0/145 lost  ρ= 0.54    1/145 lost  ρ=-0.22   84/145 lost  ρ=-0.27   95/145 lost  ρ=-0.25   89/145 lost  
+  strict-nuc5       ρ= 0.54   18/162 lost  ρ= 1.00    0/162 lost  ρ=-0.43  101/162 lost  ρ=-0.45  112/162 lost  ρ=-0.45  106/162 lost  
+  realistic         ρ=-0.22    0/61  lost  ρ=-0.43    0/61  lost  ρ= 1.00    0/61  lost  ρ= 0.82   12/61  lost  ρ= 0.88    7/61  lost  
+  realistic-mu0.6   ρ=-0.27    0/50  lost  ρ=-0.45    0/50  lost  ρ= 0.82    1/50  lost  ρ= 1.00    0/50  lost  ρ= 0.85    2/50  lost  
+  realistic-mu0.8   ρ=-0.25    0/56  lost  ρ=-0.45    0/56  lost  ρ= 0.88    2/56  lost  ρ= 0.85    8/56  lost  ρ= 1.00    0/56  lost  
+Tuned on (row) → raced on (column): finished races, mean two-lap time (s)
+                     vmax, gain        strict            strict-nuc5       realistic         realistic-mu0.6   realistic-mu0.8   
+  strict             8.50, 0.50        4/5  113.18       5/5  115.05       0/5  —            0/5  —            0/5  —            
+  strict-nuc5        9.50, 0.80        0/5  —            5/5  103.82       0/5  —            0/5  —            0/5  —            
+  realistic          4.00, 0.40        5/5  233.70       5/5  233.51       5/5  244.90       0/5  —            2/5  248.03       
+  realistic-mu0.6    4.00, 0.50        5/5  233.91       5/5  233.61       5/5  248.23       5/5  255.67       5/5  249.73       
+  realistic-mu0.8    4.00, 0.50        5/5  233.91       5/5  233.61       5/5  248.23       5/5  255.67       5/5  249.73       
+
+== mpc on Monza: 78 settings × 5 conditions in 306 s (grid extended: lo2 1)
+Rank agreement over the grid (Spearman; crashes are equal and last), and settings that finish on the row's simulator but not on the column's:
+                    strict                strict-nuc5           realistic             realistic-mu0.6       realistic-mu0.8       
+  strict            ρ= 1.00    0/25  lost  ρ= 0.53   10/25  lost  ρ=  NaN   25/25  lost  ρ=  NaN   25/25  lost  ρ=  NaN   25/25  lost  
+  strict-nuc5       ρ= 0.53    2/17  lost  ρ= 1.00    0/17  lost  ρ=  NaN   17/17  lost  ρ=  NaN   17/17  lost  ρ=  NaN   17/17  lost  
+  realistic         ρ=  NaN    0/0   lost  ρ=  NaN    0/0   lost  ρ=  NaN    0/0   lost  ρ=  NaN    0/0   lost  ρ=  NaN    0/0   lost  
+  realistic-mu0.6   ρ=  NaN    0/0   lost  ρ=  NaN    0/0   lost  ρ=  NaN    0/0   lost  ρ=  NaN    0/0   lost  ρ=  NaN    0/0   lost  
+  realistic-mu0.8   ρ=  NaN    0/0   lost  ρ=  NaN    0/0   lost  ρ=  NaN    0/0   lost  ρ=  NaN    0/0   lost  ρ=  NaN    0/0   lost  
+Tuned on (row) → raced on (column): finished races, mean two-lap time (s)
+                     vgain, horizon    strict            strict-nuc5       realistic         realistic-mu0.6   realistic-mu0.8   
+  strict             0.90, 0.25        4/5  125.07       0/5  —            0/5  —            0/5  —            0/5  —            
+  strict-nuc5        0.70, 0.25        5/5  160.17       5/5  160.36       0/5  —            0/5  —            0/5  —            
+  realistic          none finish       
+  realistic-mu0.6    none finish       
+  realistic-mu0.8    none finish       
+
+== mpc-lag on Monza: 78 settings × 5 conditions in 357 s (grid extended: lo2 1)
+Rank agreement over the grid (Spearman; crashes are equal and last), and settings that finish on the row's simulator but not on the column's:
+                    strict                strict-nuc5           realistic             realistic-mu0.6       realistic-mu0.8       
+  strict            ρ= 1.00    0/21  lost  ρ= 0.70    7/21  lost  ρ= 0.69    7/21  lost  ρ= 0.50   11/21  lost  ρ= 0.60    9/21  lost  
+  strict-nuc5       ρ= 0.70    0/14  lost  ρ= 1.00    0/14  lost  ρ= 0.91    1/14  lost  ρ= 0.66    5/14  lost  ρ= 0.79    3/14  lost  
+  realistic         ρ= 0.69    0/14  lost  ρ= 0.91    1/14  lost  ρ= 1.00    0/14  lost  ρ= 0.77    4/14  lost  ρ= 0.89    2/14  lost  
+  realistic-mu0.6   ρ= 0.50    0/10  lost  ρ= 0.66    1/10  lost  ρ= 0.77    0/10  lost  ρ= 1.00    0/10  lost  ρ= 0.87    0/10  lost  
+  realistic-mu0.8   ρ= 0.60    0/12  lost  ρ= 0.79    1/12  lost  ρ= 0.89    0/12  lost  ρ= 0.87    2/12  lost  ρ= 1.00    0/12  lost  
+Tuned on (row) → raced on (column): finished races, mean two-lap time (s)
+                     vgain, horizon    strict            strict-nuc5       realistic         realistic-mu0.6   realistic-mu0.8   
+  strict             0.70, 0.50        5/5  160.25       0/5  —            0/5  —            0/5  —            0/5  —            
+  strict-nuc5        0.60, 0.50        5/5  186.60       5/5  186.85       5/5  188.01       0/5  —            0/5  —            
+  realistic          0.60, 0.50        5/5  186.60       5/5  186.85       5/5  188.01       0/5  —            0/5  —            
+  realistic-mu0.6    0.40, 0.50        5/5  279.19       5/5  279.16       5/5  279.84       5/5  280.27       5/5  280.00       
+  realistic-mu0.8    0.50, 0.50        5/5  223.57       5/5  223.65       5/5  224.48       5/5  225.01       5/5  224.66       
+
+== LinearPolicy (ARS) on Monza: 3 policies × 5 conditions, 300 iterations, in 330 s
+Tuned on (row) → raced on (column): finished races, mean two-lap time (s)
+                     trained           strict            strict-nuc5       realistic         realistic-mu0.6   realistic-mu0.8   
+  strict             3 policies        0/15  —           0/15  —           0/15  —           0/15  —           0/15  —           
+  strict-nuc5        3 policies        0/15  —           3/15  108.29      0/15  —           0/15  —           0/15  —           
+  realistic          3 policies        4/15  130.54      4/15  130.14      0/15  —           0/15  —           0/15  —           
+  realistic-mu0.6    3 policies        0/15  —           0/15  —           0/15  —           0/15  —           0/15  —           
+  realistic-mu0.8    3 policies        0/15  —           0/15  —           0/15  —           0/15  —           0/15  —           
+
+Wrote the CSV files and provenance.txt to experiments/transfer/results/full
