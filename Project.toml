@@ -1,6 +1,6 @@
 name = "F1Tenth"
 uuid = "ec9dc3f2-e932-4b18-a493-a4686694dcbe"
-version = "1.0.0-DEV"
+version = "1.0.0"
 authors = ["Prateek Ganguli <prateek.ganguli@gmail.com> and contributors"]
 
 [deps]
