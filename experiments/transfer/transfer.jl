@@ -11,6 +11,8 @@
 #   --controllers pp,ftg,mpc,mpc-lag,rl  which controllers (default: all five)
 #   --seeds 5                  seeds for each transfer race
 #   --mu 0.6,0.8               add realistic-car conditions with these friction scales
+#   --conditions ablation      instead of the transfer conditions: strict-nuc5, realistic, and
+#                              realistic with one part made ideal (see ablation_conditions)
 #   --quick                    small grids, short training, 2 seeds: checks the pipeline
 #   --out DIR                  folder for the CSV files (default: experiments/transfer/results/<time>)
 #
@@ -51,13 +53,14 @@ const MAX_STEER = 0.4189   # the steering limit of both cars (rad)
 
 function parse_args(args)
     o = Dict{String,Any}("maps" => ["example"], "controllers" => ["pp", "ftg", "mpc", "mpc-lag", "rl"], "seeds" => 5,
+        "conditions" => "transfer",
         "mu" => Float64[], "quick" => false, "out" => nothing)
     i = 1
     while i <= length(args)
         a = args[i]
         if a == "--quick"
             o["quick"] = true
-        elseif a in ("--maps", "--controllers", "--seeds", "--mu", "--out") && i < length(args)
+        elseif a in ("--maps", "--controllers", "--seeds", "--mu", "--out", "--conditions") && i < length(args)
             v = args[i+=1]
             o[a[3:end]] = a in ("--maps", "--controllers") ? String.(split(v, ',')) :
                           a == "--seeds" ? parse(Int, v) :
@@ -78,7 +81,9 @@ struct Condition
     name::String
     sim::Module
     params::Any
+    env_kw::NamedTuple   # more keyword arguments for F110Env
 end
+Condition(name, sim, params) = Condition(name, sim, params, (;))
 
 wheelbase(c::Condition) = c.params.lf + c.params.lr
 # The steering range of the car: what the command limiter lets through, or the mechanical limits.
@@ -100,6 +105,43 @@ function strict_nuc5()
         h=r.h, m=r.m, I=r.I, s_min=r.s_min, s_max=r.s_max, sv_min=r.sv_min, sv_max=r.sv_max,
         a_max=r.current_max * F1Tenth.drive_force_per_amp(r) / r.m, v_max=r.speed_cmd_max,
         width=r.width, length=r.length)
+end
+
+# NUC5 with some fields changed
+nuc5_with(; kw...) = (p = F1Tenth.VehicleParams();
+    F1Tenth.VehicleParams(; (k => get(kw, k, getfield(p, k)) for k in fieldnames(F1Tenth.VehicleParams))...))
+
+const NUC5_DEFAULT = F1Tenth.VehicleParams()
+
+# The ablation: the realistic car with one part of the realism made ideal.
+# - linear tires: Magic Formula coefficients with the same zero-slip stiffness
+#   (B*C*D) as NUC5's tires, but with C = 1 and D = 10. In the slip range of
+#   the races the force is then linear to a few percent, and the grip limit
+#   (mu * D * Fz, also for the drive force) is 10 times the load: no limit.
+# - ideal steering: a servo with a time constant of 2 ms (none, in effect),
+#   no slew limit and the full mechanical range for the steering command, and
+#   commands at 1 kHz. The mechanical rate limit (3.2 rad/s) stays, as in the
+#   strict port.
+# - ideal speed: no rate limit on the speed command, and a fast VESC setpoint
+#   ramp. The VESC PID, the current limit and the motor stay.
+# - ideal LiDAR: as the Python code: a scan in each step (100 Hz), no sweep,
+#   10 mm noise, 30 m range.
+const IDEAL_TIRES = (Bf=NUC5_DEFAULT.Bf * NUC5_DEFAULT.Cf * NUC5_DEFAULT.Df / 10, Cf=1.0, Df=10.0, Ef=0.0,
+    Br=NUC5_DEFAULT.Br * NUC5_DEFAULT.Cr * NUC5_DEFAULT.Dr / 10, Cr=1.0, Dr=10.0, Er=0.0)
+const IDEAL_STEERING = (tau_steer=0.002, steer_rate=1000.0, steer_cmd_min=NUC5_DEFAULT.s_min,
+    steer_cmd_max=NUC5_DEFAULT.s_max, command_rate=1000.0)
+const IDEAL_SPEED = (accel_cmd=1000.0, decel_cmd=1000.0, erpm_ramp=1.0e7)
+const IDEAL_LIDAR = (scan_rate=100.0, scan_noise=0.01, scan_range=30.0)
+
+function ablation_conditions()
+    return [Condition("strict-nuc5", Strict, strict_nuc5()),
+        Condition("realistic", F1Tenth, NUC5_DEFAULT),
+        Condition("realistic-linear-tires", F1Tenth, nuc5_with(; IDEAL_TIRES...)),
+        Condition("realistic-ideal-steering", F1Tenth, nuc5_with(; IDEAL_STEERING...)),
+        Condition("realistic-ideal-speed", F1Tenth, nuc5_with(; IDEAL_SPEED...)),
+        Condition("realistic-ideal-lidar", F1Tenth, nuc5_with(; IDEAL_LIDAR...), (lidar_sweep=false,)),
+        Condition("realistic-all-ideal", F1Tenth,
+            nuc5_with(; IDEAL_TIRES..., IDEAL_STEERING..., IDEAL_SPEED..., IDEAL_LIDAR...), (lidar_sweep=false,))]
 end
 
 function conditions(mus)
@@ -489,7 +531,7 @@ function make_env(cond::Condition, track::Track)
     M = cond.sim
     return with_logger(NullLogger()) do
         M.F110Env(; map=track.map, map_ext=track.map_ext, params=cond.params, num_agents=1, timestep=0.01,
-            integrator=M.Integrator.RK4, seed=1)
+            integrator=M.Integrator.RK4, seed=1, cond.env_kw...)
     end
 end
 
@@ -731,16 +773,17 @@ fmt_time(x) = isfinite(x) ? @sprintf("%.2f", x) : "—"
 
 function print_transfer(conds, cands, res, label)
     println("Tuned on (row) → raced on (column): finished races, mean two-lap time (s)")
-    @printf("  %-18s %-18s", "", label)
-    foreach(c -> @printf("%-18s", c.name), conds)
+    W = maximum(length(c.name) for c in conds) + 2
+    print("  ", rpad("", W), rpad(label, 18))
+    foreach(c -> print(rpad(c.name, W)), conds)
     println()
     for a in conds
-        @printf("  %-18s %-18s", a.name, cands[a.name].label)
+        print("  ", rpad(a.name, W), rpad(cands[a.name].label, 18))
         isempty(cands[a.name].ctrls) && (println(); continue)
         for b in conds
             rs = res[(a.name, b.name)]
             fin = [r.race_time for r in rs if r.finished]
-            @printf("%-18s", "$(length(fin))/$(length(rs))  " * fmt_time(isempty(fin) ? Inf : mean(fin)))
+            print(rpad("$(length(fin))/$(length(rs))  " * fmt_time(isempty(fin) ? Inf : mean(fin)), W))
         end
         println()
     end
@@ -767,7 +810,8 @@ end
 function main(args=ARGS)
     o = parse_args(args)
     quick = o["quick"]
-    conds = conditions(o["mu"])
+    conds = o["conditions"] == "ablation" ? ablation_conditions() :
+            o["conditions"] == "transfer" ? conditions(o["mu"]) : error("unknown --conditions: $(o["conditions"])")
     out = something(o["out"], joinpath(@__DIR__, "results", Dates.format(now(), "yyyymmdd-HHMMSS")))
     mkpath(out)
     # one line for each start (a restart in the same folder adds a line)
@@ -807,16 +851,17 @@ function main(args=ARGS)
                     join(("$k $v" for (k, v) in sort(collect(extended)) if v > 0), ", ") |> s -> isempty(s) ? "no" : s)
                 println("Rank agreement over the grid (Spearman; crashes are equal and last), and settings that",
                     " finish on the row's simulator but not on the column's:")
-                @printf("  %-18s", "")
-                foreach(c -> @printf("%-22s", c.name), conds)
+                W = maximum(length(c.name) for c in conds) + 2
+                print("  ", rpad("", W))
+                foreach(c -> print(rpad(c.name, max(W, 22))), conds)
                 println()
                 for a in conds
-                    @printf("  %-18s", a.name)
+                    print("  ", rpad(a.name, W))
                     for b in conds
                         ok_a, ok_b = isfinite.(S[a.name]), isfinite.(S[b.name])
                         lost = count(ok_a .& .!ok_b)
                         ρ = spearman(S[a.name], S[b.name])
-                        @printf("ρ=%5.2f  %3d/%-3d lost  ", ρ, lost, count(ok_a))
+                        print(rpad(@sprintf("ρ=%5.2f  %3d/%-3d lost", ρ, lost, count(ok_a)), max(W, 22)))
                         push!(rank_rows, (mapname, key, a.name, b.name, ρ, count(ok_a), lost))
                     end
                     println()

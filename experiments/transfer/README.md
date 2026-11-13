@@ -154,3 +154,38 @@ seeds):
 - `rl` is conclusive only on the example map. On Spa and Monza, the linear
   ARS policies seldom finish two laps on any condition, `strict` included.
   These tracks need more training than 300 iterations.
+
+## The ablation (results/ablation)
+
+```sh
+julia --project=experiments/transfer -t auto experiments/transfer/transfer.jl --conditions ablation --controllers pp,ftg,mpc --maps example,Spa,Monza --out experiments/transfer/results/ablation
+```
+
+`--conditions ablation` races strict-nuc5, realistic, and the realistic car
+with one part of the realism made ideal (see `ablation_conditions` in
+transfer.jl):
+
+| condition | the part made ideal |
+|---|---|
+| `realistic-linear-tires` | Magic Formula tires with the same zero-slip stiffness, C = 1 and D = 10: linear to a few percent, with no grip limit |
+| `realistic-ideal-steering` | servo time constant 2 ms, no slew limit, the full mechanical range, commands at 1 kHz (the 3.2 rad/s mechanical rate limit stays) |
+| `realistic-ideal-speed` | no rate limit on the speed command, a fast VESC setpoint ramp (the PID, current limit and motor stay) |
+| `realistic-ideal-lidar` | a scan in each step (100 Hz), no sweep, 10 mm noise, 30 m range |
+| `realistic-all-ideal` | all four |
+
+Results (the best strict-nuc5 setting, 5 seeds on each of 3 maps):
+
+- With one part made ideal, the best strict-nuc5 setting finishes 0 of 15
+  races, for all three controllers and for each of the four parts. No
+  single part explains the gap.
+- With all four parts ideal, it finishes 10 of 15 races for `ftg` and
+  `mpc` (Spa and Monza, not the example map) and 0 of 15 for `pp`. The
+  all-ideal car still differs from strict-nuc5: it detects crashes from the
+  body and the map (not from the LiDAR), and it keeps the VESC speed loop.
+- The rank agreement with strict-nuc5 (mean over the maps) increases most
+  with ideal steering: from +0.46 to +0.75 for `pp`, and from +0.26 (on one
+  map; on the other two no setting finishes) to +0.81 for `mpc`. For `ftg`,
+  only all four parts together restore it (-0.23 to +0.63).
+- The best realistic setting finishes all races on `realistic-all-ideal`
+  and on strict-nuc5, for the three controllers.
+- `log-run1.log` has the printed tables.

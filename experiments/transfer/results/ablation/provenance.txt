@@ -1,0 +1,1 @@
+2026-11-13T15:01:47.373: F1Tenth.jl 70d9659e6f6e1f9c4f8095c12c23624f2f0a88b9, archive/python-compat ec14a0d0762b9f9ea52ef6062ca5d1edc5e15a07, transfer.jl sha256 8573e087a720b575bf7fa7cb89fd2c2a73f236586ea083d9193ad9cfb8320331, julia 1.13.0, 12 threads, args: --conditions ablation --controllers pp,ftg,mpc --maps example,Spa,Monza --out experiments/transfer/results/ablation

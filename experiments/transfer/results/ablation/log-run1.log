@@ -1,0 +1,183 @@
+Conditions: strict-nuc5, realistic, realistic-linear-tires, realistic-ideal-steering, realistic-ideal-speed, realistic-ideal-lidar, realistic-all-ideal; 12 threads; output: experiments/transfer/results/ablation
+
+== pp on example: 169 settings × 7 conditions in 16 s (grid extended: lo1 2)
+Rank agreement over the grid (Spearman; crashes are equal and last), and settings that finish on the row's simulator but not on the column's:
+                            strict-nuc5               realistic                 realistic-linear-tires    realistic-ideal-steering  realistic-ideal-speed     realistic-ideal-lidar     realistic-all-ideal       
+  strict-nuc5               ρ= 1.00    0/73  lost     ρ= 0.31   38/73  lost     ρ= 0.32   37/73  lost     ρ= 0.63   12/73  lost     ρ= 0.29   39/73  lost     ρ= 0.31   38/73  lost     ρ= 0.77    2/73  lost     
+  realistic                 ρ= 0.31    6/41  lost     ρ= 1.00    0/41  lost     ρ= 0.98    0/41  lost     ρ= 0.41    4/41  lost     ρ= 0.98    1/41  lost     ρ= 1.00    0/41  lost     ρ= 0.23    4/41  lost     
+  realistic-linear-tires    ρ= 0.32    6/42  lost     ρ= 0.98    1/42  lost     ρ= 1.00    0/42  lost     ρ= 0.43    4/42  lost     ρ= 0.95    2/42  lost     ρ= 0.98    1/42  lost     ρ= 0.25    4/42  lost     
+  realistic-ideal-steering  ρ= 0.63    9/70  lost     ρ= 0.41   33/70  lost     ρ= 0.43   32/70  lost     ρ= 1.00    0/70  lost     ρ= 0.40   34/70  lost     ρ= 0.41   33/70  lost     ρ= 0.72    0/70  lost     
+  realistic-ideal-speed     ρ= 0.29    6/40  lost     ρ= 0.98    0/40  lost     ρ= 0.95    0/40  lost     ρ= 0.40    4/40  lost     ρ= 1.00    0/40  lost     ρ= 0.98    0/40  lost     ρ= 0.22    4/40  lost     
+  realistic-ideal-lidar     ρ= 0.31    6/41  lost     ρ= 1.00    0/41  lost     ρ= 0.98    0/41  lost     ρ= 0.41    4/41  lost     ρ= 0.98    1/41  lost     ρ= 1.00    0/41  lost     ρ= 0.23    4/41  lost     
+  realistic-all-ideal       ρ= 0.77   13/84  lost     ρ= 0.23   47/84  lost     ρ= 0.25   46/84  lost     ρ= 0.72   14/84  lost     ρ= 0.22   48/84  lost     ρ= 0.23   47/84  lost     ρ= 1.00    0/84  lost     
+Tuned on (row) → raced on (column): finished races, mean two-lap time (s)
+                            lookahead, vgain  strict-nuc5               realistic                 realistic-linear-tires    realistic-ideal-steering  realistic-ideal-speed     realistic-ideal-lidar     realistic-all-ideal       
+  strict-nuc5               0.80, 1.40        5/5  32.76                0/5  —                    0/5  —                    0/5  —                    0/5  —                    0/5  —                    0/5  —                    
+  realistic                 1.20, 0.70        5/5  63.94                5/5  64.70                5/5  64.65                5/5  64.58                5/5  64.04                5/5  64.70                5/5  63.63                
+  realistic-linear-tires    1.40, 0.80        5/5  56.43                0/5  —                    5/5  57.48                5/5  57.25                0/5  —                    0/5  —                    5/5  56.13                
+  realistic-ideal-steering  0.40, 1.00        0/5  —                    0/5  —                    0/5  —                    5/5  45.66                0/5  —                    0/5  —                    5/5  44.35                
+  realistic-ideal-speed     1.20, 0.70        5/5  63.94                5/5  64.70                5/5  64.65                5/5  64.58                5/5  64.04                5/5  64.70                5/5  63.63                
+  realistic-ideal-lidar     1.20, 0.70        5/5  63.94                5/5  64.70                5/5  64.65                5/5  64.58                5/5  64.04                5/5  64.70                5/5  63.63                
+  realistic-all-ideal       0.40, 1.30        0/5  —                    0/5  —                    0/5  —                    0/5  —                    0/5  —                    0/5  —                    5/5  34.39                
+
+== ftg on example: 252 settings × 7 conditions in 417 s (grid extended: hi1 8, lo2 1)
+Rank agreement over the grid (Spearman; crashes are equal and last), and settings that finish on the row's simulator but not on the column's:
+                            strict-nuc5               realistic                 realistic-linear-tires    realistic-ideal-steering  realistic-ideal-speed     realistic-ideal-lidar     realistic-all-ideal       
+  strict-nuc5               ρ= 1.00    0/215 lost     ρ=-0.27  106/215 lost     ρ=-0.24  103/215 lost     ρ=-0.07   71/215 lost     ρ=-0.30  180/215 lost     ρ=-0.25  102/215 lost     ρ= 0.87    3/215 lost     
+  realistic                 ρ=-0.27    0/109 lost     ρ= 1.00    0/109 lost     ρ= 0.94    1/109 lost     ρ= 0.63    0/109 lost     ρ= 0.41   75/109 lost     ρ= 0.96    0/109 lost     ρ=-0.29    0/109 lost     
+  realistic-linear-tires    ρ=-0.24    0/112 lost     ρ= 0.94    4/112 lost     ρ= 1.00    0/112 lost     ρ= 0.65    1/112 lost     ρ= 0.40   78/112 lost     ρ= 0.95    2/112 lost     ρ=-0.27    0/112 lost     
+  realistic-ideal-steering  ρ=-0.07    1/145 lost     ρ= 0.63   36/145 lost     ρ= 0.65   34/145 lost     ρ= 1.00    0/145 lost     ρ= 0.11  110/145 lost     ρ= 0.67   32/145 lost     ρ=-0.10    1/145 lost     
+  realistic-ideal-speed     ρ=-0.30    0/35  lost     ρ= 0.41    1/35  lost     ρ= 0.40    1/35  lost     ρ= 0.11    0/35  lost     ρ= 1.00    0/35  lost     ρ= 0.39    1/35  lost     ρ=-0.33    0/35  lost     
+  realistic-ideal-lidar     ρ=-0.25    0/113 lost     ρ= 0.96    4/113 lost     ρ= 0.95    3/113 lost     ρ= 0.67    0/113 lost     ρ= 0.39   79/113 lost     ρ= 1.00    0/113 lost     ρ=-0.27    0/113 lost     
+  realistic-all-ideal       ρ= 0.87    6/218 lost     ρ=-0.29  109/218 lost     ρ=-0.27  106/218 lost     ρ=-0.10   74/218 lost     ρ=-0.33  183/218 lost     ρ=-0.27  105/218 lost     ρ= 1.00    0/218 lost     
+Tuned on (row) → raced on (column): finished races, mean two-lap time (s)
+                            vmax, gain        strict-nuc5               realistic                 realistic-linear-tires    realistic-ideal-steering  realistic-ideal-speed     realistic-ideal-lidar     realistic-all-ideal       
+  strict-nuc5               11.00, 0.40       5/5  42.51                0/5  —                    0/5  —                    0/5  —                    0/5  —                    0/5  —                    0/5  —                    
+  realistic                 4.50, 0.30        5/5  91.53                5/5  105.38               5/5  103.65               5/5  89.49                5/5  104.46               5/5  101.82               5/5  87.67                
+  realistic-linear-tires    4.50, 0.30        5/5  91.53                5/5  105.38               5/5  103.65               5/5  89.49                5/5  104.46               5/5  101.82               5/5  87.67                
+  realistic-ideal-steering  6.00, 0.50        5/5  74.03                0/5  —                    3/5  127.80               5/5  75.68                0/5  —                    1/5  121.19               5/5  69.65                
+  realistic-ideal-speed     5.00, 0.30        5/5  83.90                0/5  —                    0/5  —                    5/5  82.28                5/5  99.80                0/5  —                    5/5  80.57                
+  realistic-ideal-lidar     4.50, 0.30        5/5  91.53                5/5  105.38               5/5  103.65               5/5  89.49                5/5  104.46               5/5  101.82               5/5  87.67                
+  realistic-all-ideal       12.00, 0.60       0/5  —                    0/5  —                    0/5  —                    0/5  —                    0/5  —                    0/5  —                    4/5  42.79                
+
+== mpc on example: 78 settings × 7 conditions in 173 s (grid extended: lo2 1)
+Rank agreement over the grid (Spearman; crashes are equal and last), and settings that finish on the row's simulator but not on the column's:
+                            strict-nuc5               realistic                 realistic-linear-tires    realistic-ideal-steering  realistic-ideal-speed     realistic-ideal-lidar     realistic-all-ideal       
+  strict-nuc5               ρ= 1.00    0/28  lost     ρ=  NaN   28/28  lost     ρ=  NaN   28/28  lost     ρ= 0.81    5/28  lost     ρ=  NaN   28/28  lost     ρ=  NaN   28/28  lost     ρ= 0.86    4/28  lost     
+  realistic                 ρ=  NaN    0/0   lost     ρ=  NaN    0/0   lost     ρ=  NaN    0/0   lost     ρ=  NaN    0/0   lost     ρ=  NaN    0/0   lost     ρ=  NaN    0/0   lost     ρ=  NaN    0/0   lost     
+  realistic-linear-tires    ρ=  NaN    0/0   lost     ρ=  NaN    0/0   lost     ρ=  NaN    0/0   lost     ρ=  NaN    0/0   lost     ρ=  NaN    0/0   lost     ρ=  NaN    0/0   lost     ρ=  NaN    0/0   lost     
+  realistic-ideal-steering  ρ= 0.81    0/23  lost     ρ=  NaN   23/23  lost     ρ=  NaN   23/23  lost     ρ= 1.00    0/23  lost     ρ=  NaN   23/23  lost     ρ=  NaN   23/23  lost     ρ= 0.95    0/23  lost     
+  realistic-ideal-speed     ρ=  NaN    0/0   lost     ρ=  NaN    0/0   lost     ρ=  NaN    0/0   lost     ρ=  NaN    0/0   lost     ρ=  NaN    0/0   lost     ρ=  NaN    0/0   lost     ρ=  NaN    0/0   lost     
+  realistic-ideal-lidar     ρ=  NaN    0/0   lost     ρ=  NaN    0/0   lost     ρ=  NaN    0/0   lost     ρ=  NaN    0/0   lost     ρ=  NaN    0/0   lost     ρ=  NaN    0/0   lost     ρ=  NaN    0/0   lost     
+  realistic-all-ideal       ρ= 0.86    0/24  lost     ρ=  NaN   24/24  lost     ρ=  NaN   24/24  lost     ρ= 0.95    1/24  lost     ρ=  NaN   24/24  lost     ρ=  NaN   24/24  lost     ρ= 1.00    0/24  lost     
+Tuned on (row) → raced on (column): finished races, mean two-lap time (s)
+                            vgain, horizon    strict-nuc5               realistic                 realistic-linear-tires    realistic-ideal-steering  realistic-ideal-speed     realistic-ideal-lidar     realistic-all-ideal       
+  strict-nuc5               1.10, 0.25        5/5  41.79                0/5  —                    0/5  —                    0/5  —                    0/5  —                    0/5  —                    0/5  —                    
+  realistic                 none finish       
+  realistic-linear-tires    none finish       
+  realistic-ideal-steering  0.90, 0.25        5/5  50.03                0/5  —                    0/5  —                    5/5  51.04                0/5  —                    0/5  —                    5/5  49.73                
+  realistic-ideal-speed     none finish       
+  realistic-ideal-lidar     none finish       
+  realistic-all-ideal       1.00, 0.25        5/5  45.43                0/5  —                    0/5  —                    0/5  —                    0/5  —                    0/5  —                    5/5  45.19                
+
+== pp on Spa: 169 settings × 7 conditions in 39 s (grid extended: lo1 2)
+Rank agreement over the grid (Spearman; crashes are equal and last), and settings that finish on the row's simulator but not on the column's:
+                            strict-nuc5               realistic                 realistic-linear-tires    realistic-ideal-steering  realistic-ideal-speed     realistic-ideal-lidar     realistic-all-ideal       
+  strict-nuc5               ρ= 1.00    0/44  lost     ρ= 0.46   24/44  lost     ρ= 0.48   23/44  lost     ρ= 0.74   10/44  lost     ρ= 0.46   24/44  lost     ρ= 0.46   24/44  lost     ρ= 0.88    3/44  lost     
+  realistic                 ρ= 0.46    3/23  lost     ρ= 1.00    0/23  lost     ρ= 0.97    0/23  lost     ρ= 0.58    3/23  lost     ρ= 1.00    0/23  lost     ρ= 1.00    0/23  lost     ρ= 0.46    3/23  lost     
+  realistic-linear-tires    ρ= 0.48    3/24  lost     ρ= 0.97    1/24  lost     ρ= 1.00    0/24  lost     ρ= 0.61    3/24  lost     ρ= 0.97    1/24  lost     ρ= 0.97    1/24  lost     ρ= 0.48    3/24  lost     
+  realistic-ideal-steering  ρ= 0.74    2/36  lost     ρ= 0.58   16/36  lost     ρ= 0.61   15/36  lost     ρ= 1.00    0/36  lost     ρ= 0.58   16/36  lost     ρ= 0.58   16/36  lost     ρ= 0.82    0/36  lost     
+  realistic-ideal-speed     ρ= 0.46    3/23  lost     ρ= 1.00    0/23  lost     ρ= 0.97    0/23  lost     ρ= 0.58    3/23  lost     ρ= 1.00    0/23  lost     ρ= 1.00    0/23  lost     ρ= 0.46    3/23  lost     
+  realistic-ideal-lidar     ρ= 0.46    3/23  lost     ρ= 1.00    0/23  lost     ρ= 0.97    0/23  lost     ρ= 0.58    3/23  lost     ρ= 1.00    0/23  lost     ρ= 1.00    0/23  lost     ρ= 0.46    3/23  lost     
+  realistic-all-ideal       ρ= 0.88    3/44  lost     ρ= 0.46   24/44  lost     ρ= 0.48   23/44  lost     ρ= 0.82    8/44  lost     ρ= 0.46   24/44  lost     ρ= 0.46   24/44  lost     ρ= 1.00    0/44  lost     
+Tuned on (row) → raced on (column): finished races, mean two-lap time (s)
+                            lookahead, vgain  strict-nuc5               realistic                 realistic-linear-tires    realistic-ideal-steering  realistic-ideal-speed     realistic-ideal-lidar     realistic-all-ideal       
+  strict-nuc5               0.60, 0.90        5/5  167.13               0/5  —                    0/5  —                    0/5  —                    0/5  —                    0/5  —                    0/5  —                    
+  realistic                 1.00, 0.50        5/5  297.55               5/5  299.09               5/5  298.87               5/5  297.99               5/5  298.40               5/5  299.09               5/5  297.09               
+  realistic-linear-tires    1.00, 0.50        5/5  297.55               5/5  299.09               5/5  298.87               5/5  297.99               5/5  298.40               5/5  299.09               5/5  297.09               
+  realistic-ideal-steering  0.40, 0.60        0/5  —                    0/5  —                    0/5  —                    5/5  248.41               0/5  —                    0/5  —                    5/5  247.29               
+  realistic-ideal-speed     1.00, 0.50        5/5  297.55               5/5  299.09               5/5  298.87               5/5  297.99               5/5  298.40               5/5  299.09               5/5  297.09               
+  realistic-ideal-lidar     1.00, 0.50        5/5  297.55               5/5  299.09               5/5  298.87               5/5  297.99               5/5  298.40               5/5  299.09               5/5  297.09               
+  realistic-all-ideal       0.60, 0.80        5/5  187.07               0/5  —                    0/5  —                    0/5  —                    0/5  —                    0/5  —                    5/5  186.73               
+
+== ftg on Spa: 252 settings × 7 conditions in 457 s (grid extended: hi1 8, lo2 1)
+Rank agreement over the grid (Spearman; crashes are equal and last), and settings that finish on the row's simulator but not on the column's:
+                            strict-nuc5               realistic                 realistic-linear-tires    realistic-ideal-steering  realistic-ideal-speed     realistic-ideal-lidar     realistic-all-ideal       
+  strict-nuc5               ρ= 1.00    0/192 lost     ρ=-0.22  116/192 lost     ρ=-0.21  113/192 lost     ρ=-0.15  100/192 lost     ρ=-0.24  155/192 lost     ρ=-0.19  109/192 lost     ρ= 0.52    1/192 lost     
+  realistic                 ρ=-0.22    0/76  lost     ρ= 1.00    0/76  lost     ρ= 0.97    0/76  lost     ρ= 0.76    0/76  lost     ρ= 0.58   40/76  lost     ρ= 0.90    1/76  lost     ρ=-0.44    0/76  lost     
+  realistic-linear-tires    ρ=-0.21    0/79  lost     ρ= 0.97    3/79  lost     ρ= 1.00    0/79  lost     ρ= 0.80    0/79  lost     ρ= 0.56   43/79  lost     ρ= 0.89    3/79  lost     ρ=-0.44    0/79  lost     
+  realistic-ideal-steering  ρ=-0.15    1/93  lost     ρ= 0.76   17/93  lost     ρ= 0.80   14/93  lost     ρ= 1.00    0/93  lost     ρ= 0.37   56/93  lost     ρ= 0.83   11/93  lost     ρ=-0.40    0/93  lost     
+  realistic-ideal-speed     ρ=-0.24    0/37  lost     ρ= 0.58    1/37  lost     ρ= 0.56    1/37  lost     ρ= 0.37    0/37  lost     ρ= 1.00    0/37  lost     ρ= 0.50    1/37  lost     ρ=-0.39    0/37  lost     
+  realistic-ideal-lidar     ρ=-0.19    0/83  lost     ρ= 0.90    8/83  lost     ρ= 0.89    7/83  lost     ρ= 0.83    1/83  lost     ρ= 0.50   47/83  lost     ρ= 1.00    0/83  lost     ρ=-0.42    0/83  lost     
+  realistic-all-ideal       ρ= 0.52   27/218 lost     ρ=-0.44  142/218 lost     ρ=-0.44  139/218 lost     ρ=-0.40  125/218 lost     ρ=-0.39  181/218 lost     ρ=-0.42  135/218 lost     ρ= 1.00    0/218 lost     
+Tuned on (row) → raced on (column): finished races, mean two-lap time (s)
+                            vmax, gain        strict-nuc5               realistic                 realistic-linear-tires    realistic-ideal-steering  realistic-ideal-speed     realistic-ideal-lidar     realistic-all-ideal       
+  strict-nuc5               11.50, 0.50       5/5  113.20               0/5  —                    0/5  —                    0/5  —                    0/5  —                    0/5  —                    5/5  113.90               
+  realistic                 4.50, 0.40        5/5  261.50               5/5  282.98               5/5  280.42               5/5  260.40               0/5  —                    5/5  271.79               5/5  259.23               
+  realistic-linear-tires    4.50, 0.40        5/5  261.50               5/5  282.98               5/5  280.42               5/5  260.40               0/5  —                    5/5  271.79               5/5  259.23               
+  realistic-ideal-steering  6.00, 0.90        5/5  199.74               1/5  423.76               5/5  413.35               4/5  201.58               0/5  —                    4/5  363.38               5/5  197.08               
+  realistic-ideal-speed     4.50, 0.30        5/5  263.18               0/5  —                    0/5  —                    5/5  262.25               4/5  274.02               5/5  271.63               5/5  260.74               
+  realistic-ideal-lidar     4.50, 0.40        5/5  261.50               5/5  282.98               5/5  280.42               5/5  260.40               0/5  —                    5/5  271.79               5/5  259.23               
+  realistic-all-ideal       12.00, 1.20       0/5  —                    0/5  —                    0/5  —                    0/5  —                    0/5  —                    0/5  —                    5/5  108.73               
+
+== mpc on Spa: 78 settings × 7 conditions in 473 s (grid extended: lo2 1)
+Rank agreement over the grid (Spearman; crashes are equal and last), and settings that finish on the row's simulator but not on the column's:
+                            strict-nuc5               realistic                 realistic-linear-tires    realistic-ideal-steering  realistic-ideal-speed     realistic-ideal-lidar     realistic-all-ideal       
+  strict-nuc5               ρ= 1.00    0/20  lost     ρ= 0.26   17/20  lost     ρ= 0.26   17/20  lost     ρ= 0.85    3/20  lost     ρ= 0.26   17/20  lost     ρ= 0.26   17/20  lost     ρ= 0.96    1/20  lost     
+  realistic                 ρ= 0.26    0/3   lost     ρ= 1.00    0/3   lost     ρ= 1.00    0/3   lost     ρ= 0.32    0/3   lost     ρ= 1.00    0/3   lost     ρ= 1.00    0/3   lost     ρ= 0.28    0/3   lost     
+  realistic-linear-tires    ρ= 0.26    0/3   lost     ρ= 1.00    0/3   lost     ρ= 1.00    0/3   lost     ρ= 0.32    0/3   lost     ρ= 1.00    0/3   lost     ρ= 1.00    0/3   lost     ρ= 0.28    0/3   lost     
+  realistic-ideal-steering  ρ= 0.85    0/17  lost     ρ= 0.32   14/17  lost     ρ= 0.32   14/17  lost     ρ= 1.00    0/17  lost     ρ= 0.32   14/17  lost     ρ= 0.32   14/17  lost     ρ= 0.90    0/17  lost     
+  realistic-ideal-speed     ρ= 0.26    0/3   lost     ρ= 1.00    0/3   lost     ρ= 1.00    0/3   lost     ρ= 0.32    0/3   lost     ρ= 1.00    0/3   lost     ρ= 1.00    0/3   lost     ρ= 0.28    0/3   lost     
+  realistic-ideal-lidar     ρ= 0.26    0/3   lost     ρ= 1.00    0/3   lost     ρ= 1.00    0/3   lost     ρ= 0.32    0/3   lost     ρ= 1.00    0/3   lost     ρ= 1.00    0/3   lost     ρ= 0.28    0/3   lost     
+  realistic-all-ideal       ρ= 0.96    0/19  lost     ρ= 0.28   16/19  lost     ρ= 0.28   16/19  lost     ρ= 0.90    2/19  lost     ρ= 0.28   16/19  lost     ρ= 0.28   16/19  lost     ρ= 1.00    0/19  lost     
+Tuned on (row) → raced on (column): finished races, mean two-lap time (s)
+                            vgain, horizon    strict-nuc5               realistic                 realistic-linear-tires    realistic-ideal-steering  realistic-ideal-speed     realistic-ideal-lidar     realistic-all-ideal       
+  strict-nuc5               0.80, 0.25        5/5  187.31               0/5  —                    0/5  —                    0/5  —                    0/5  —                    0/5  —                    5/5  187.01               
+  realistic                 0.40, 1.00        5/5  372.37               3/5  380.83               3/5  380.87               5/5  372.32               1/5  378.69               3/5  380.83               5/5  371.67               
+  realistic-linear-tires    0.40, 1.00        5/5  372.37               3/5  380.83               3/5  380.87               5/5  372.32               1/5  378.69               3/5  380.83               5/5  371.67               
+  realistic-ideal-steering  0.60, 0.25        5/5  247.84               0/5  —                    0/5  —                    5/5  248.39               0/5  —                    0/5  —                    5/5  247.23               
+  realistic-ideal-speed     0.40, 1.00        5/5  372.37               3/5  380.83               3/5  380.87               5/5  372.32               1/5  378.69               3/5  380.83               5/5  371.67               
+  realistic-ideal-lidar     0.40, 1.00        5/5  372.37               3/5  380.83               3/5  380.87               5/5  372.32               1/5  378.69               3/5  380.83               5/5  371.67               
+  realistic-all-ideal       0.80, 0.25        5/5  187.31               0/5  —                    0/5  —                    0/5  —                    0/5  —                    0/5  —                    5/5  187.01               
+
+== pp on Monza: 143 settings × 7 conditions in 19 s (grid extended: no)
+Rank agreement over the grid (Spearman; crashes are equal and last), and settings that finish on the row's simulator but not on the column's:
+                            strict-nuc5               realistic                 realistic-linear-tires    realistic-ideal-steering  realistic-ideal-speed     realistic-ideal-lidar     realistic-all-ideal       
+  strict-nuc5               ρ= 1.00    0/26  lost     ρ= 0.61   12/26  lost     ρ= 0.64   11/26  lost     ρ= 0.87    4/26  lost     ρ= 0.61   12/26  lost     ρ= 0.61   12/26  lost     ρ= 0.94    2/26  lost     
+  realistic                 ρ= 0.61    1/15  lost     ρ= 1.00    0/15  lost     ρ= 0.96    0/15  lost     ρ= 0.70    1/15  lost     ρ= 1.00    0/15  lost     ρ= 1.00    0/15  lost     ρ= 0.65    1/15  lost     
+  realistic-linear-tires    ρ= 0.64    1/16  lost     ρ= 0.96    1/16  lost     ρ= 1.00    0/16  lost     ρ= 0.73    1/16  lost     ρ= 0.96    1/16  lost     ρ= 0.96    1/16  lost     ρ= 0.68    1/16  lost     
+  realistic-ideal-steering  ρ= 0.87    0/22  lost     ρ= 0.70    8/22  lost     ρ= 0.73    7/22  lost     ρ= 1.00    0/22  lost     ρ= 0.70    8/22  lost     ρ= 0.70    8/22  lost     ρ= 0.94    0/22  lost     
+  realistic-ideal-speed     ρ= 0.61    1/15  lost     ρ= 1.00    0/15  lost     ρ= 0.96    0/15  lost     ρ= 0.70    1/15  lost     ρ= 1.00    0/15  lost     ρ= 1.00    0/15  lost     ρ= 0.65    1/15  lost     
+  realistic-ideal-lidar     ρ= 0.61    1/15  lost     ρ= 1.00    0/15  lost     ρ= 0.96    0/15  lost     ρ= 0.70    1/15  lost     ρ= 1.00    0/15  lost     ρ= 1.00    0/15  lost     ρ= 0.65    1/15  lost     
+  realistic-all-ideal       ρ= 0.94    0/24  lost     ρ= 0.65   10/24  lost     ρ= 0.68    9/24  lost     ρ= 0.94    2/24  lost     ρ= 0.65   10/24  lost     ρ= 0.65   10/24  lost     ρ= 1.00    0/24  lost     
+Tuned on (row) → raced on (column): finished races, mean two-lap time (s)
+                            lookahead, vgain  strict-nuc5               realistic                 realistic-linear-tires    realistic-ideal-steering  realistic-ideal-speed     realistic-ideal-lidar     realistic-all-ideal       
+  strict-nuc5               1.00, 0.60        5/5  190.46               0/5  —                    0/5  —                    0/5  —                    0/5  —                    0/5  —                    0/5  —                    
+  realistic                 2.00, 0.40        5/5  282.35               5/5  283.85               5/5  283.82               5/5  282.75               5/5  283.22               5/5  283.85               5/5  282.09               
+  realistic-linear-tires    2.00, 0.40        5/5  282.35               5/5  283.85               5/5  283.82               5/5  282.75               5/5  283.22               5/5  283.85               5/5  282.09               
+  realistic-ideal-steering  1.60, 0.50        5/5  226.92               0/5  —                    0/5  —                    5/5  227.39               0/5  —                    0/5  —                    5/5  226.52               
+  realistic-ideal-speed     2.00, 0.40        5/5  282.35               5/5  283.85               5/5  283.82               5/5  282.75               5/5  283.22               5/5  283.85               5/5  282.09               
+  realistic-ideal-lidar     2.00, 0.40        5/5  282.35               5/5  283.85               5/5  283.82               5/5  282.75               5/5  283.22               5/5  283.85               5/5  282.09               
+  realistic-all-ideal       1.80, 0.50        5/5  226.74               0/5  —                    0/5  —                    0/5  —                    0/5  —                    0/5  —                    5/5  226.37               
+
+== ftg on Monza: 231 settings × 7 conditions in 332 s (grid extended: hi1 8)
+Rank agreement over the grid (Spearman; crashes are equal and last), and settings that finish on the row's simulator but not on the column's:
+                            strict-nuc5               realistic                 realistic-linear-tires    realistic-ideal-steering  realistic-ideal-speed     realistic-ideal-lidar     realistic-all-ideal       
+  strict-nuc5               ρ= 1.00    0/172 lost     ρ=-0.20  110/172 lost     ρ=-0.22  112/172 lost     ρ=-0.11   89/172 lost     ρ=-0.23  139/172 lost     ρ=-0.20  109/172 lost     ρ= 0.50    0/172 lost     
+  realistic                 ρ=-0.20    0/62  lost     ρ= 1.00    0/62  lost     ρ= 0.93    4/62  lost     ρ= 0.69    0/62  lost     ρ= 0.62   30/62  lost     ρ= 0.83    6/62  lost     ρ=-0.44    0/62  lost     
+  realistic-linear-tires    ρ=-0.22    0/60  lost     ρ= 0.93    2/60  lost     ρ= 1.00    0/60  lost     ρ= 0.66    0/60  lost     ρ= 0.67   27/60  lost     ρ= 0.91    2/60  lost     ρ=-0.45    0/60  lost     
+  realistic-ideal-steering  ρ=-0.11    0/83  lost     ρ= 0.69   21/83  lost     ρ= 0.66   23/83  lost     ρ= 1.00    0/83  lost     ρ= 0.37   50/83  lost     ρ= 0.68   21/83  lost     ρ=-0.40    0/83  lost     
+  realistic-ideal-speed     ρ=-0.23    0/33  lost     ρ= 0.62    1/33  lost     ρ= 0.67    0/33  lost     ρ= 0.37    0/33  lost     ρ= 1.00    0/33  lost     ρ= 0.62    0/33  lost     ρ=-0.39    0/33  lost     
+  realistic-ideal-lidar     ρ=-0.20    0/63  lost     ρ= 0.83    7/63  lost     ρ= 0.91    5/63  lost     ρ= 0.68    1/63  lost     ρ= 0.62   30/63  lost     ρ= 1.00    0/63  lost     ρ=-0.44    0/63  lost     
+  realistic-all-ideal       ρ= 0.50   27/199 lost     ρ=-0.44  137/199 lost     ρ=-0.45  139/199 lost     ρ=-0.40  116/199 lost     ρ=-0.39  166/199 lost     ρ=-0.44  136/199 lost     ρ= 1.00    0/199 lost     
+Tuned on (row) → raced on (column): finished races, mean two-lap time (s)
+                            vmax, gain        strict-nuc5               realistic                 realistic-linear-tires    realistic-ideal-steering  realistic-ideal-speed     realistic-ideal-lidar     realistic-all-ideal       
+  strict-nuc5               11.00, 0.60       5/5  90.70                0/5  —                    0/5  —                    0/5  —                    0/5  —                    0/5  —                    5/5  91.74                
+  realistic                 4.00, 0.40        5/5  233.21               5/5  243.40               5/5  242.88               5/5  232.14               0/5  —                    5/5  239.53               5/5  231.06               
+  realistic-linear-tires    4.00, 0.40        5/5  233.21               5/5  243.40               5/5  242.88               5/5  232.14               0/5  —                    5/5  239.53               5/5  231.06               
+  realistic-ideal-steering  5.50, 0.70        5/5  171.96               1/5  288.28               1/5  288.51               5/5  173.41               0/5  —                    0/5  —                    5/5  170.00               
+  realistic-ideal-speed     3.50, 0.50        5/5  265.66               5/5  268.28               5/5  267.99               5/5  263.99               5/5  267.65               5/5  266.79               5/5  263.23               
+  realistic-ideal-lidar     4.50, 0.60        5/5  208.31               0/5  —                    4/5  262.79               5/5  207.32               0/5  —                    4/5  231.33               5/5  206.16               
+  realistic-all-ideal       11.50, 1.20       0/5  —                    0/5  —                    0/5  —                    0/5  —                    0/5  —                    0/5  —                    5/5  88.69                
+
+== mpc on Monza: 78 settings × 7 conditions in 400 s (grid extended: lo2 1)
+Rank agreement over the grid (Spearman; crashes are equal and last), and settings that finish on the row's simulator but not on the column's:
+                            strict-nuc5               realistic                 realistic-linear-tires    realistic-ideal-steering  realistic-ideal-speed     realistic-ideal-lidar     realistic-all-ideal       
+  strict-nuc5               ρ= 1.00    0/13  lost     ρ=  NaN   13/13  lost     ρ=  NaN   13/13  lost     ρ= 0.76    4/13  lost     ρ=  NaN   13/13  lost     ρ=  NaN   13/13  lost     ρ= 0.95    0/13  lost     
+  realistic                 ρ=  NaN    0/0   lost     ρ=  NaN    0/0   lost     ρ=  NaN    0/0   lost     ρ=  NaN    0/0   lost     ρ=  NaN    0/0   lost     ρ=  NaN    0/0   lost     ρ=  NaN    0/0   lost     
+  realistic-linear-tires    ρ=  NaN    0/0   lost     ρ=  NaN    0/0   lost     ρ=  NaN    0/0   lost     ρ=  NaN    0/0   lost     ρ=  NaN    0/0   lost     ρ=  NaN    0/0   lost     ρ=  NaN    0/0   lost     
+  realistic-ideal-steering  ρ= 0.76    0/9   lost     ρ=  NaN    9/9   lost     ρ=  NaN    9/9   lost     ρ= 1.00    0/9   lost     ρ=  NaN    9/9   lost     ρ=  NaN    9/9   lost     ρ= 0.72    0/9   lost     
+  realistic-ideal-speed     ρ=  NaN    0/0   lost     ρ=  NaN    0/0   lost     ρ=  NaN    0/0   lost     ρ=  NaN    0/0   lost     ρ=  NaN    0/0   lost     ρ=  NaN    0/0   lost     ρ=  NaN    0/0   lost     
+  realistic-ideal-lidar     ρ=  NaN    0/0   lost     ρ=  NaN    0/0   lost     ρ=  NaN    0/0   lost     ρ=  NaN    0/0   lost     ρ=  NaN    0/0   lost     ρ=  NaN    0/0   lost     ρ=  NaN    0/0   lost     
+  realistic-all-ideal       ρ= 0.95    1/14  lost     ρ=  NaN   14/14  lost     ρ=  NaN   14/14  lost     ρ= 0.72    5/14  lost     ρ=  NaN   14/14  lost     ρ=  NaN   14/14  lost     ρ= 1.00    0/14  lost     
+Tuned on (row) → raced on (column): finished races, mean two-lap time (s)
+                            vgain, horizon    strict-nuc5               realistic                 realistic-linear-tires    realistic-ideal-steering  realistic-ideal-speed     realistic-ideal-lidar     realistic-all-ideal       
+  strict-nuc5               0.50, 0.25        5/5  227.39               0/5  —                    0/5  —                    0/5  —                    0/5  —                    0/5  —                    5/5  227.05               
+  realistic                 none finish       
+  realistic-linear-tires    none finish       
+  realistic-ideal-steering  0.40, 0.25        5/5  283.19               0/5  —                    0/5  —                    5/5  283.72               0/5  —                    0/5  —                    5/5  282.86               
+  realistic-ideal-speed     none finish       
+  realistic-ideal-lidar     none finish       
+  realistic-all-ideal       0.50, 0.25        5/5  227.39               0/5  —                    0/5  —                    0/5  —                    0/5  —                    0/5  —                    5/5  227.05               
+
+Wrote the CSV files and provenance.txt to experiments/transfer/results/ablation
