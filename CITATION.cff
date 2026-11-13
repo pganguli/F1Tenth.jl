@@ -1,0 +1,58 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it using these metadata."
+type: software
+title: "F1Tenth.jl"
+abstract: >-
+  F1Tenth.jl is an F1TENTH simulator in Julia. It is a port of the Python
+  f1tenth_gym, and it keeps the API of the Python code. It simulates one real
+  F1TENTH car, ForzaETH's NUC5, from published values: Magic Formula tires
+  with a friction ellipse, the low-level actuator chain of the car (command
+  limiter, steering servo and VESC speed loop), and its Hokuyo UST-10LX LiDAR
+  as its specification describes it.
+authors:
+  - family-names: Ganguli
+    given-names: Prateek
+    orcid: "https://orcid.org/0009-0003-3688-1399"
+license: MIT
+version: 1.0.0
+repository-code: "https://github.com/pganguli/F1Tenth.jl"
+url: "https://pganguli.github.io/F1Tenth.jl/dev/"
+keywords:
+  - F1TENTH
+  - autonomous racing
+  - vehicle dynamics
+  - simulation
+  - LiDAR
+  - reinforcement learning
+  - Julia
+references:
+  - type: software
+    title: "f1tenth_gym"
+    authors:
+      - family-names: Zheng
+        given-names: Hongrui
+      - family-names: Auckley
+        given-names: Joseph
+      - family-names: O'Kelly
+        given-names: Matthew
+      - family-names: Sinha
+        given-names: Aman
+    repository-code: "https://github.com/f1tenth/f1tenth_gym"
+    license: MIT
+  - type: software
+    title: "ForzaETH race stack"
+    authors:
+      - name: ForzaETH
+    repository-code: "https://github.com/ForzaETH/race_stack"
+  - type: software
+    title: "On-Track-SysID"
+    authors:
+      - name: ForzaETH
+    repository-code: "https://github.com/ForzaETH/On-Track-SysID"
+    license: MIT
+  - type: software
+    title: "f1tenth_racetracks"
+    authors:
+      - name: F1TENTH
+    repository-code: "https://github.com/f1tenth/f1tenth_racetracks"
+    license: GPL-3.0
