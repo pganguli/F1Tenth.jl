@@ -13,6 +13,7 @@ authors:
   - family-names: Ganguli
     given-names: Prateek
     orcid: "https://orcid.org/0009-0003-3688-1399"
+    affiliation: "The University of North Carolina at Chapel Hill, USA"
 license: MIT
 version: 1.0.0
 repository-code: "https://github.com/pganguli/F1Tenth.jl"
@@ -56,3 +57,129 @@ references:
       - name: F1TENTH
     repository-code: "https://github.com/f1tenth/f1tenth_racetracks"
     license: GPL-3.0
+  - type: conference-paper
+    title: "F1TENTH: An Open-source Evaluation Environment for Continuous Control and Reinforcement Learning"
+    authors:
+      - family-names: O'Kelly
+        given-names: Matthew
+      - family-names: Zheng
+        given-names: Hongrui
+      - family-names: Karthik
+        given-names: Dhruv
+      - family-names: Mangharam
+        given-names: Rahul
+    collection-title: "Proceedings of the NeurIPS 2019 Competition and Demonstration Track"
+    editors:
+      - family-names: Escalante
+        given-names: Hugo Jair
+      - family-names: Hadsell
+        given-names: Raia
+    publisher:
+      name: PMLR
+    volume: 123
+    start: 77
+    end: 89
+    year: 2020
+    url: "https://proceedings.mlr.press/v123/o-kelly20a.html"
+  - type: article
+    title: "ForzaETH Race Stack—Scaled Autonomous Head-to-Head Racing on Fully Commercial Off-the-Shelf Hardware"
+    authors:
+      - family-names: Baumann
+        given-names: Nicolas
+      - family-names: Ghignone
+        given-names: Edoardo
+      - family-names: Kühne
+        given-names: Jonas
+      - family-names: Bastuck
+        given-names: Niklas
+      - family-names: Becker
+        given-names: Jonathan
+      - family-names: Imholz
+        given-names: Nadine
+      - family-names: Kränzlin
+        given-names: Tobias
+      - family-names: Lim
+        given-names: Tian Yi
+      - family-names: Lötscher
+        given-names: Michael
+      - family-names: Schwarzenbach
+        given-names: Luca
+      - family-names: Tognoni
+        given-names: Luca
+      - family-names: Vogt
+        given-names: Christian
+      - family-names: Carron
+        given-names: Andrea
+      - family-names: Magno
+        given-names: Michele
+    journal: "Journal of Field Robotics"
+    volume: 42
+    issue: 4
+    start: 1037
+    end: 1079
+    year: 2025
+    doi: 10.1002/rob.22429
+  - type: article
+    title: "Learning-Based On-Track System Identification for Scaled Autonomous Racing in Under a Minute"
+    authors:
+      - family-names: Dikici
+        given-names: Onur
+      - family-names: Ghignone
+        given-names: Edoardo
+      - family-names: Hu
+        given-names: Cheng
+      - family-names: Baumann
+        given-names: Nicolas
+      - family-names: Xie
+        given-names: Lei
+      - family-names: Carron
+        given-names: Andrea
+      - family-names: Magno
+        given-names: Michele
+      - family-names: Corno
+        given-names: Matteo
+    journal: "IEEE Robotics and Automation Letters"
+    volume: 10
+    issue: 2
+    start: 1984
+    end: 1991
+    year: 2025
+    doi: 10.1109/LRA.2025.3527336
+  - type: book
+    title: "Tire and Vehicle Dynamics"
+    authors:
+      - family-names: Pacejka
+        given-names: Hans B.
+    edition: "3rd"
+    publisher:
+      name: Butterworth-Heinemann
+    year: 2012
+    isbn: "978-0-08-097016-5"
+    doi: 10.1016/C2010-0-68548-8
+  - type: conference-paper
+    title: "CommonRoad: Composable Benchmarks for Motion Planning on Roads"
+    authors:
+      - family-names: Althoff
+        given-names: Matthias
+      - family-names: Koschi
+        given-names: Markus
+      - family-names: Manzinger
+        given-names: Stefanie
+    collection-title: "2017 IEEE Intelligent Vehicles Symposium (IV)"
+    start: 719
+    end: 726
+    year: 2017
+    doi: 10.1109/IVS.2017.7995802
+  - type: article
+    title: "Distance Transforms of Sampled Functions"
+    authors:
+      - family-names: Felzenszwalb
+        given-names: Pedro F.
+      - family-names: Huttenlocher
+        given-names: Daniel P.
+    journal: "Theory of Computing"
+    volume: 8
+    start: 415
+    end: 428
+    year: 2012
+    doi: 10.4086/toc.2012.v008a019

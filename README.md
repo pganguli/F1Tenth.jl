@@ -166,7 +166,7 @@ identified on their "dubi" floor,
 `stack_master/config/NUC5/pacejka/dubi/default.yaml`).
 
 Their On-Track-SysID repository also has a NUC5 model
-(`models/NUC5/NUC5_pacejka.txt`; Dikici et al., arXiv:2411.17508). We do
+(`models/NUC5/NUC5_pacejka.txt`; Dikici et al., IEEE RA-L 2025). We do
 not use it, for two reasons:
 
 - Its body values are not the same as the values of NUC5 in the race stack
