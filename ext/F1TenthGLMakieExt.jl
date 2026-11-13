@@ -1,6 +1,7 @@
-# The render window, ported from f110_gym/envs/rendering.py (pyglet) to
-# GLMakie: the same camera (left/right/bottom/top in renderer units, drag to
-# pan, scroll to zoom about the mouse), colors, cars, label and FPS readout.
+# The render window, a port of f110_gym/envs/rendering.py (pyglet) to
+# GLMakie. It has the same camera (left/right/bottom/top in renderer units;
+# drag to move the view, scroll to zoom around the mouse), colors, cars,
+# label and FPS display.
 module F1TenthGLMakieExt
 
 using F1Tenth
@@ -19,7 +20,7 @@ mutable struct GLState
     label_pos::Observable{Point2f}
     label_text::Observable{String}
     fps_text::Observable{String}
-    limits::NTuple{4,Float64}   # last camera applied to the axis
+    limits::NTuple{4,Float64}   # the last camera that the axis got
     frames::Int
     fps_t0::Float64
     dragging::Bool
@@ -28,8 +29,9 @@ end
 
 function F1Tenth._make_renderer(width::Int, height::Int)
     fig = Figure(; size=(width, height), backgroundcolor=BG_COLOR, figure_padding=0)
-    # autolimitaspect: keep pixels square, widening a camera area that doesn't
-    # match the window's shape instead of stretching it (Python stretches)
+    # autolimitaspect: keep the pixels square. If the camera area does not
+    # have the shape of the window, make it wider. Do not stretch it (the
+    # Python code stretches it).
     ax = Axis(fig[1, 1]; backgroundcolor=BG_COLOR, autolimitaspect=1)
     hidedecorations!(ax)
     hidespines!(ax)
@@ -51,15 +53,16 @@ function F1Tenth._make_renderer(width::Int, height::Int)
     r = EnvRenderer(width, height, -width / 2, width / 2, -height / 2, height / 2, 1.2, width, height, label, 1,
         nothing, Any[], fig, ax, screen, st)
     _register_events!(r)
-    # the window manager may not honor the requested size; start from the real one
+    # the window manager can ignore the requested size: start from the real size
     w, h = widths(events(fig).window_area[])
     w > 0 && h > 0 ? _on_resize!(r, w, h) : _on_resize!(r, width, height)
     return r
 end
 
-# HiDPI scale: GLMakie's own (the system's, or one set with
-# GLMakie.activate!(scalefactor=...)), else, when the system reports none (as
-# X11 often does), the monitor's DPI over 96, rounded.
+# The HiDPI scale. If GLMakie has a scale (from the system, or from
+# GLMakie.activate!(scalefactor=...)), use it. If the system gives no scale
+# (X11 frequently gives none), use the DPI of the monitor divided by 96,
+# rounded.
 function _scalefactor()
     configured = Makie.current_default_theme()[:GLMakie][:scalefactor][]
     configured isa Makie.Automatic || return configured
@@ -83,7 +86,8 @@ function _px_per_unit(scalefactor)
     return min(scalefactor, 2.0)
 end
 
-# Window resize resets the camera to the origin at the current zoom, as in Python.
+# When the window size changes, the camera goes back to the origin at the
+# current zoom, as in the Python code.
 function _on_resize!(r::EnvRenderer, width, height)
     r.width, r.height = width, height
     r.left, r.right = -r.zoom_level * width / 2, r.zoom_level * width / 2
@@ -151,8 +155,9 @@ function _apply_camera!(r::EnvRenderer)
     return r
 end
 
-# Obstacle pixels (exactly 0 in the image, as Python draws them) as one
-# texture, each pixel centered where Python puts its GL point.
+# The obstacle pixels (exactly 0 in the image, as the Python code draws them)
+# as one texture. Each pixel has its center where the Python code puts its
+# GL point.
 function F1Tenth._renderer_update_map!(r::EnvRenderer, m::MapData)
     h, w = size(m.raw)
     colors = [m.raw[row, col] == 0x00 ? MAP_COLOR : RGBAf(0, 0, 0, 0) for col in 1:w, row in 1:h]
@@ -166,14 +171,14 @@ end
 
 function _car_points(x, y, th, (length, width))
     v = get_vertices((x, y, th), length, width)
-    # a plain Vector: Makie rejects static vectors of points
+    # a plain Vector: Makie does not accept static vectors of points
     return Point2f[Point2f(RENDER_SCALE * v[k][1], RENDER_SCALE * v[k][2]) for k in 1:4]::Vector{Point2f}
 end
 
 function F1Tenth._renderer_update_obs!(r::EnvRenderer, obs::Observation, sizes)
     r.ego_idx = obs.ego_idx
     n = length(obs.poses_x)
-    if r.poses === nothing   # first frame: one polygon per car
+    if r.poses === nothing   # first frame: one polygon for each car
         for i in 1:n
             pts = Observable(_car_points(0.0, 0.0, 0.0, sizes[i]))
             poly!(r.axis, pts; color=i == r.ego_idx ? EGO_COLOR : OPP_COLOR)

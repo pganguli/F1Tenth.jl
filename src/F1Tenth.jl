@@ -1,17 +1,18 @@
 """
     F1Tenth
 
-An F1TENTH simulator, ported from the Python `f1tenth_gym` and keeping its
-API, with a realistic vehicle model, actuator chain and LiDAR for ForzaETH's
-NUC5 car; see the README. (The strict Python port is on the
-`archive/python-compat` branch.) Start with [`F110Env`](@ref).
+An F1TENTH simulator. It is a port of the Python `f1tenth_gym`, and it
+keeps the API of the Python code. It has a realistic vehicle model,
+actuator chain and LiDAR for NUC5, the car of ForzaETH. For the details,
+see the README. (The `archive/python-compat` branch has the strict Python
+port.) To start, see [`F110Env`](@ref).
 """
 module F1Tenth
 
 import ColorTypes
 import FileIO
-import ImageIO   # loaded so FileIO can read map images from inside this package
-using LazyArtifacts   # the lazy-artifact download needs the module binding, not just the macro
+import ImageIO   # loaded, thus FileIO can read map images from inside this package
+using LazyArtifacts   # the lazy-artifact download needs the module binding, not only the macro
 import Logging
 import Netpbm    # .pgm maps
 import YAML
@@ -20,7 +21,7 @@ using Random: AbstractRNG, Xoshiro, randn, randn!
 using SIMD: Vec, vifelse, vgather
 using StaticArrays: SVector, SMatrix, MVector, setindex
 
-# Files mirror the Python modules in f110_gym/envs, plus actuators.jl.
+# The files are the same as the Python modules in f110_gym/envs, and actuators.jl.
 include("params.jl")
 include("dynamic_models.jl")
 include("actuators.jl")
@@ -33,7 +34,7 @@ include("rendering.jl")
 include("f110_env.jl")
 include("precompile.jl")
 
-# The tracer choice is per machine: don't keep one made while precompiling.
+# The tracer choice is different for each machine: do not keep a choice from the precompilation.
 __init__() = (_SIMD_FASTER[] = nothing; nothing)
 
 # f110_env

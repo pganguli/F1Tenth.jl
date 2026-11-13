@@ -1,33 +1,35 @@
-# The low-level actuator chain of a real F1TENTH car, as ForzaETH run theirs:
+# The low-level actuator chain of a real F1TENTH car, as ForzaETH operate
+# their cars:
 #
 #   planner command (steer, speed)
-#     -> command limiter (ForzaETH's actuation_manager, 75 Hz): clip, then
-#        slew-limit the steering and speed commands
-#     -> steering servo: first-order lag towards the steering command
-#     -> VESC motor controller (1 kHz): ramp the speed setpoint, PID on motor
-#        speed, output motor current; below its minimum speed, short the
-#        windings, which brakes
-#     -> motor: current times the torque constant, through the gearing, is the
-#        drive force on the car
+#     -> command limiter (the actuation_manager of ForzaETH, 75 Hz): clips
+#        the steering and speed commands, then limits their rates of change
+#     -> steering servo: a first-order lag to the steering command
+#     -> VESC motor controller (1 kHz): ramps the speed setpoint, does a PID
+#        on the motor speed and sets the motor current. Below its minimum
+#        speed, it shorts the windings, which brakes the car.
+#     -> motor: the current multiplied by the torque constant, through the
+#        gearing, is the drive force on the car
 #
-# This file holds the chain's pieces; RaceCar's actuate! runs them each step.
-# See VehicleParams for every value's source.
+# This file has the parts of the chain. The actuate! function of RaceCar
+# runs them in each step. For the source of each value, see VehicleParams.
 
 """
     ActuatorState()
 
-What one car's actuator chain remembers between steps: the latest planner
-command, the command limiter's outputs and timing, and the VESC speed loop's
-setpoint, PID memory and motor current.
+The values that the actuator chain of one car keeps from one step to the
+next: the latest planner command, the outputs and the timing of the command
+limiter, and the setpoint, the PID memory and the motor current of the VESC
+speed loop.
 """
 Base.@kwdef mutable struct ActuatorState
     steer_cmd::Float64 = 0.0    # latest planner command
     speed_cmd::Float64 = 0.0
     steer_out::Float64 = 0.0    # command limiter outputs
     speed_out::Float64 = 0.0
-    tick_wait::Float64 = 0.0    # time until the limiter's next tick (s)
-    erpm_set::Float64 = 0.0     # VESC's ramped speed setpoint (ERPM)
-    i_term::Float64 = 0.0       # VESC speed PID memory
+    tick_wait::Float64 = 0.0    # time to the next tick of the limiter (s)
+    erpm_set::Float64 = 0.0     # ramped speed setpoint of the VESC (ERPM)
+    i_term::Float64 = 0.0       # memory of the VESC speed PID
     prev_error::Float64 = 0.0
     d_filter::Float64 = 0.0
     current::Float64 = 0.0      # motor current (A)
@@ -40,7 +42,7 @@ function reset!(a::ActuatorState)
     return a
 end
 
-# Zero the speed side of the chain, as when the car is stopped by a crash.
+# Set the speed side of the chain to zero, as when a crash stops the car.
 function stop_motor!(a::ActuatorState)
     a.speed_out = a.erpm_set = a.i_term = a.prev_error = a.d_filter = a.current = 0.0
     return a
@@ -48,10 +50,10 @@ end
 
 @inline _step_towards(x, target, max_step) = x + clamp(target - x, -max_step, max_step)
 
-# One tick of ForzaETH's ActuationLimiter (f1tenth_stack/actuation_limiter.py,
-# MIT): clip each command to its range, then move the output towards it by at
-# most rate * dt. The speed command uses the deceleration rate whenever it is
-# below the current output.
+# One tick of the ActuationLimiter of ForzaETH (f1tenth_stack/actuation_limiter.py,
+# MIT). It clips each command to its range. Then it moves the output to the
+# command by a maximum of rate * dt. When the speed command is less than the
+# current output, the speed uses the deceleration rate.
 function _limiter_tick!(a::ActuatorState, p::VehicleParams)
     dt = 1 / p.command_rate
     speed = clamp(a.speed_cmd, p.speed_cmd_min, p.speed_cmd_max)
@@ -62,16 +64,16 @@ function _limiter_tick!(a::ActuatorState, p::VehicleParams)
     return a
 end
 
-# One pass of the VESC firmware's speed loop (behavior of
-# foc_run_pid_control_speed in vedderb/bldc, motor/foc_math.c), given the
+# One pass of the speed loop of the VESC firmware (the behavior of
+# foc_run_pid_control_speed in vedderb/bldc, motor/foc_math.c), with the
 # measured motor speed `erpm` and the loop period `dt`:
-# - the setpoint moves towards the command by at most erpm_ramp * dt
-# - below vesc_min_erpm the PID stops (integral cleared) and the duty cycle
-#   is held at zero, which shorts the windings: see _shorted_current
-# - otherwise PID on the speed error (gains act on error / 20), the D term
-#   low-pass filtered, the output clipped to ±1, and the integral (updated
-#   after the output) clipped to ±1
-# - motor current = output * current_max (braking allowed)
+# - The setpoint moves to the command by a maximum of erpm_ramp * dt.
+# - Below vesc_min_erpm, the PID stops (the integral becomes zero), and the
+#   duty cycle stays at zero. This shorts the windings: see _shorted_current.
+# - Else, a PID on the speed error (the gains apply to error / 20). A
+#   low-pass filter smooths the D term. The output is clipped to ±1. The
+#   integral changes after the output, and it is clipped to ±1.
+# - The motor current is output * current_max (braking is permitted).
 function _vesc_step!(a::ActuatorState, erpm::Float64, dt::Float64, p::VehicleParams)
     a.erpm_set = _step_towards(a.erpm_set, p.erpm_gain * a.speed_out, p.erpm_ramp * dt)
     error = a.erpm_set - erpm
@@ -91,12 +93,12 @@ function _vesc_step!(a::ActuatorState, erpm::Float64, dt::Float64, p::VehiclePar
     return a
 end
 
-# Motor current with the windings shorted (zero duty cycle, as the VESC
-# firmware holds it below its minimum speed setpoint, "brake when set ERPM is
-# below min ERPM" in motor/mcpwm_foc.c): the back-EMF drives a braking
-# current. For a surface-magnet motor at electrical speed ω with zero applied
-# voltage, the dq equations in steady state (their time constant L/R is
-# 0.14 ms) give i_q = -ω λ R / (R² + (ω L)²).
+# The motor current with the windings shorted. The VESC firmware holds the
+# duty cycle at zero below its minimum speed setpoint ("brake when set ERPM
+# is below min ERPM" in motor/mcpwm_foc.c). The back-EMF then causes a
+# braking current. For a surface-magnet motor at electrical speed ω with zero
+# applied voltage, the dq equations in steady state (their time constant L/R
+# is 0.14 ms) give i_q = -ω λ R / (R² + (ω L)²).
 function _shorted_current(erpm::Float64, p::VehicleParams)
     ω = erpm * 2pi / 60
     R, L = p.motor_resistance, p.motor_inductance
@@ -106,11 +108,13 @@ end
 """
     drive_force_per_amp(params) -> Float64
 
-Drive force on the car per amp of motor current (N/A). A permanent-magnet
-motor under field-oriented control makes torque `1.5 * pole_pairs *
-flux_linkage * current`; through the gearing, force times car speed equals
-torque times motor speed, and the motor's electrical speed per m/s is
-`erpm_gain * 2π/60`, so the pole pairs cancel:
-`1.5 * flux_linkage * erpm_gain * 2π/60`. Drivetrain losses are not modeled.
+The drive force on the car for each amp of motor current (N/A). A
+permanent-magnet motor with field-oriented control makes the torque
+`1.5 * pole_pairs * flux_linkage * current`. Through the gearing, the force
+multiplied by the car speed is equal to the torque multiplied by the motor
+speed. The electrical speed of the motor for each m/s is
+`erpm_gain * 2π/60`. Thus the pole pairs cancel, and the force for each amp
+is `1.5 * flux_linkage * erpm_gain * 2π/60`. The model has no drivetrain
+losses.
 """
 drive_force_per_amp(p::VehicleParams) = 1.5 * p.flux_linkage * p.erpm_gain * 2pi / 60

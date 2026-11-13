@@ -1,13 +1,14 @@
-# The gym environment, ported from f110_gym/envs/f110_env.py.
+# The gym environment, a port of f110_gym/envs/f110_env.py.
 
 const MAPS_DIR = joinpath(dirname(@__DIR__), "maps")
 
-# Python's bundled maps, by name, with their image extensions.
+# The maps of the Python code that the package includes, by name, with their image extensions.
 const BUILTIN_MAPS = Dict("berlin" => ".png", "skirk" => ".png", "levine" => ".pgm", "vegas" => ".png")
 
 # Real-world tracks from github.com/f1tenth/f1tenth_racetracks, by name =>
-# folder. Its license is GPL-3.0, so the maps are not bundled: Pkg downloads
-# them (a pinned commit, see Artifacts.toml) the first time one is used.
+# folder. Their license is GPL-3.0, thus the package does not include them.
+# Pkg downloads them (one fixed commit, see Artifacts.toml) when you use one
+# for the first time.
 const RACETRACKS = Dict(name => name for name in ("Austin", "BrandsHatch", "Budapest", "Catalunya",
     "Hockenheim", "IMS", "Melbourne", "Montreal", "Monza", "MoscowRaceway", "Nuerburgring", "Oschersleben",
     "Sakhir", "SaoPaulo", "Sepang", "Shanghai", "Silverstone", "Sochi", "Spa", "Spielberg", "YasMarina",
@@ -19,40 +20,43 @@ function racetrack_yaml(name::AbstractString)
     return joinpath(root, only(readdir(root)), RACETRACKS[name], name * "_map.yaml")
 end
 
-# render window size
+# size of the render window
 const WINDOW_W = 1000
 const WINDOW_H = 800
-# frames a second of sim time that render!(env; mode=:human) draws, at most
+# the maximum number of frames that render!(env; mode=:human) draws for each second of sim time
 const HUMAN_FPS = 60.0
 
 """
     F110Env(; seed=12345, map="vegas", map_ext=".png", params=VehicleParams(), num_agents=2,
               timestep=0.01, ego_idx=1, integrator=Integrator.RK4, lidar_dist=nothing, lidar_sweep=true)
 
-The F1TENTH gym environment, with the keyword arguments of Python's
-`gym.make('f110_gym:f110-v0', **kwargs)`:
+The F1TENTH gym environment, with the keyword arguments of
+`gym.make('f110_gym:f110-v0', **kwargs)` in the Python code:
 
-- `seed`: seed of the LiDAR noise
+- `seed`: the seed of the LiDAR noise
 - `map`: `"berlin"`, `"skirk"`, `"levine"`, `"vegas"`, a track from
-  [f1tenth_racetracks](https://github.com/f1tenth/f1tenth_racetracks) such as
-  `"Austin"` or `"Spa"` (downloaded on first use; see `F1Tenth.RACETRACKS`),
-  or the path of a map yaml file without its extension
-- `map_ext`: extension of the map image, such as `".png"` (built-in maps
-  default to their own)
-- `params`: a [`VehicleParams`](@ref) or a dict with all of its keys
-- `num_agents`: number of cars
-- `timestep`: physics time step in seconds
-- `ego_idx`: index of the ego car (1-based)
+  [f1tenth_racetracks](https://github.com/f1tenth/f1tenth_racetracks) (for
+  example `"Austin"` or `"Spa"`; Pkg downloads them when you use one for the
+  first time; see `F1Tenth.RACETRACKS`), or the path of a map yaml file
+  without its extension
+- `map_ext`: the extension of the map image, for example `".png"` (the
+  included maps use their own extension by default)
+- `params`: a [`VehicleParams`](@ref), or a dict with all of its keys
+- `num_agents`: the number of cars
+- `timestep`: the physics time step in seconds
+- `ego_idx`: the index of the ego car (from 1)
 - `integrator`: `Integrator.RK4` or `Integrator.Euler`
-- `lidar_dist`: how far the LiDAR sits ahead of the car's center of
-  gravity, the point the pose gives (Python's docstring says the rear axle,
-  but its code also measures from the pose); by default `params.lidar_x -
-  params.lr`, where NUC5 carries it (0.143 m)
-- `lidar_sweep` (not in Python): take each LiDAR beam from the pose at its
-  own time in the sweep, as the real sensor does (`true`), or the whole scan
-  from the pose at its first beam (`false`)
+- `lidar_dist`: the distance of the LiDAR in front of the center of gravity
+  of the car, which is the point that the pose gives. (The docstring of the
+  Python code says the rear axle, but its code also measures from the
+  pose.) The default is `params.lidar_x - params.lr`, where NUC5 has the
+  LiDAR (0.143 m).
+- `lidar_sweep` (not in the Python code): if `true`, take each LiDAR beam
+  from the pose at the time of that beam in the sweep, as the real sensor
+  does. If `false`, take the full scan from the pose at its first beam.
 
-Drive it with [`reset!`](@ref), [`step!`](@ref) and [`render!`](@ref).
+To operate the environment, use [`reset!`](@ref), [`step!`](@ref) and
+[`render!`](@ref).
 """
 mutable struct F110Env
     seed::Int
@@ -82,7 +86,7 @@ mutable struct F110Env
     # rendering
     renderer::Union{Nothing,EnvRenderer}
     render_callbacks::Vector{Any}
-    wall_start::Float64   # wall-clock time matching sim time 0, for :human pacing
+    wall_start::Float64   # the wall-clock time at sim time 0, for the :human pace
     last_frame::Float64   # sim time of the last frame drawn
 end
 
@@ -105,7 +109,7 @@ function F110Env(; seed::Integer=12345, map::Union{Nothing,AbstractString}=nothi
     params = convert(VehicleParams, params)
     lidar_dist = something(lidar_dist, params.lidar_x - params.lr)
     n = Int(num_agents)
-    # like Python, the simulator is not told the ego index: obs.ego_idx is always 1
+    # as in the Python code, the simulator does not get the ego index: obs.ego_idx is always 1
     sim = Simulator(params, n, seed; time_step=timestep, integrator=integrator, lidar_dist=lidar_dist,
         lidar_sweep=lidar_sweep)
     set_map!(sim, map_path, map_ext)
@@ -121,8 +125,9 @@ end
 Base.show(io::IO, env::F110Env) = print(io, "F110Env(map=\"", env.map_name, "\", num_agents=", env.num_agents,
     ", timestep=", env.timestep, ", integrator=", env.integrator, ")")
 
-# Lap counting: a car "toggles" each time it enters or leaves a zone around
-# its start; two toggles make a lap, and four mean it has finished.
+# Lap count: a car "toggles" each time it goes into or out of a zone around
+# its start. Two toggles are one lap. Four toggles mean that the car has
+# finished.
 function _check_done!(env::F110Env)
     left_t, right_t = 2, 2
     o, R = env.obs, env.start_rot
@@ -149,12 +154,16 @@ end
 """
     step!(env::F110Env, action) -> (obs, reward, done, info)
 
-Advance one time step. `action` is `num_agents × 2`: desired steering angle
-in column 1, desired speed in column 2. `reward` is the time step; `done` is
-true once the ego car crashes or every car has done two laps;
-`info.checkpoint_done[i]` is true once car `i` has.
+Move forward by one time step. `action` is `num_agents × 2`: the requested
+steering angle in column 1, and the requested speed in column 2.
 
-The returned [`Observation`](@ref) and `info` are overwritten by the next call.
+- `reward` is the time step.
+- `done` is true when the ego car crashes, or when all cars have done two
+  laps.
+- `info.checkpoint_done[i]` is true when car `i` has done two laps.
+
+The next call writes new values into the returned [`Observation`](@ref) and
+`info`.
 """
 function step!(env::F110Env, action::AbstractMatrix{<:Real})
     step!(env.sim, action)
@@ -166,8 +175,9 @@ end
 """
     reset!(env::F110Env, poses) -> (obs, reward, done, info)
 
-Start a new episode with car `i` at row `i` of `poses` (`num_agents × 3`:
-x, y, θ). As in Python, this takes one zero-input step and returns its result.
+Start a new episode, with car `i` at row `i` of `poses` (`num_agents × 3`:
+x, y, θ). As in the Python code, the function does one step with zero
+input, and returns the result of that step.
 """
 function reset!(env::F110Env, poses::AbstractMatrix{<:Real})
     env.current_time = 0.0
@@ -186,8 +196,9 @@ end
 """
     update_map!(env, map_path, map_ext)
 
-Switch the simulation to the map yaml at `map_path` with image extension
-`map_ext`. (As in Python, an open render window keeps drawing the old map.)
+Change the map of the simulation to the map yaml file at `map_path`, with
+the image extension `map_ext`. (As in the Python code, an open render window
+continues to show the old map.)
 """
 update_map!(env::F110Env, map_path::AbstractString, map_ext::AbstractString) =
     (set_map!(env.sim, map_path, map_ext); nothing)
@@ -195,16 +206,17 @@ update_map!(env::F110Env, map_path::AbstractString, map_ext::AbstractString) =
 """
     update_params!(env, params; index=-1)
 
-Replace the vehicle parameters of car `index`, or of every car when `index`
-is negative. Car-to-car collisions keep the body size given at construction,
-as in Python.
+Replace the vehicle parameters of car `index`, or of all cars if `index`
+is negative. The collisions between cars use the new body size. (The Python
+code keeps the size from the construction.)
 """
 update_params!(env::F110Env, params; index::Integer=-1) = update_params!(env.sim, params; agent_idx=index)
 
 """
     add_render_callback!(env, callback)
 
-Call `callback(renderer::EnvRenderer)` on every [`render!`](@ref), before drawing.
+Call `callback(renderer::EnvRenderer)` before each frame that
+[`render!`](@ref) draws.
 """
 add_render_callback!(env::F110Env, callback) = (push!(env.render_callbacks, callback); nothing)
 
@@ -214,7 +226,7 @@ function _pace_to_real_time!(env::F110Env)
         env.wall_start = time() - env.current_time
         wait = 0.0
     end
-    wait >= 0.001 ? sleep(wait) : yield()   # sleep can't go below 1 ms
+    wait >= 0.001 ? sleep(wait) : yield()   # sleep cannot wait less than 1 ms
     return nothing
 end
 
@@ -239,7 +251,7 @@ If you close the window, the next frame that `render!` draws causes an error.
 function render!(env::F110Env; mode::Union{Symbol,AbstractString}=:human)
     mode = Symbol(mode)
     mode in (:human, :human_fast) || throw(ArgumentError("mode must be :human or :human_fast, got :$mode"))
-    # at most HUMAN_FPS frames a second of sim time (a reset moves the sim time back)
+    # a maximum of HUMAN_FPS frames for each second of sim time (a reset moves the sim time back)
     mode === :human && env.renderer !== nothing &&
         env.last_frame <= env.current_time < env.last_frame + 1 / HUMAN_FPS - 1e-9 && return nothing
     env.last_frame = env.current_time
@@ -247,7 +259,7 @@ function render!(env::F110Env; mode::Union{Symbol,AbstractString}=:human)
         env.renderer = _make_renderer(WINDOW_W, WINDOW_H)
         _renderer_update_map!(env.renderer, env.sim.scan_simulator.map)
     end
-    # each car drawn at its own body size (Python draws a fixed 0.58 × 0.31 m)
+    # draw each car at its own body size (the Python code draws all cars at 0.58 × 0.31 m)
     _renderer_update_obs!(env.renderer, env.obs, [(car.params.length, car.params.width) for car in env.sim.agents])
     foreach(callback -> callback(env.renderer), env.render_callbacks)
     _renderer_draw!(env.renderer)

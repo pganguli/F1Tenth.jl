@@ -1,12 +1,12 @@
-# 2D LiDAR simulation, ported from f110_gym/envs/laser_models.py. Map loading
-# is in maps.jl and the beam tracing in lidar_tracing.jl; scans are
-# bit-identical to Python's.
+# The 2D LiDAR simulation, a port of f110_gym/envs/laser_models.py. The map
+# loading is in maps.jl, and the beam tracing is in lidar_tracing.jl. With the
+# parameters of the Python code, the scans are bit-identical to its scans.
 
 """
     ScanSimulator2D(num_beams, fov; eps=0.0001, theta_dis=2000, max_range=30.0)
 
-2D LiDAR simulator. Beam angles are looked up in a table of `theta_dis`
-angles over a full turn; call [`set_map!`](@ref) before scanning.
+A 2D LiDAR simulator. The beam angles come from a table of `theta_dis`
+angles over a full turn. Before a scan, call [`set_map!`](@ref).
 """
 mutable struct ScanSimulator2D
     num_beams::Int
@@ -33,7 +33,7 @@ function ScanSimulator2D(num_beams::Integer, fov::Real; eps::Real=0.0001, theta_
     max_range::Real=30.0)
     angle_increment = fov / (num_beams - 1)
     theta_index_increment = theta_dis * angle_increment / (2.0 * pi)
-    # numpy.linspace(0, 2π, theta_dis): i * step, with the last value exactly 2π
+    # numpy.linspace(0, 2π, theta_dis): i * step, and the last value is exactly 2π
     step = 2pi / (theta_dis - 1)
     theta_arr = [(i - 1) * step + 0.0 for i in 1:theta_dis]
     theta_arr[end] = 2pi
@@ -44,7 +44,8 @@ end
 """
     set_map!(scan_sim, map_path, map_ext)
 
-Load the map yaml at `map_path` and its image `<map_path without extension><map_ext>`.
+Load the map yaml file at `map_path`, and its image
+`<map_path without extension><map_ext>`.
 """
 set_map!(sim::ScanSimulator2D, map_path::AbstractString, map_ext::AbstractString) =
     set_map!(sim, load_map(map_path, map_ext))
@@ -62,11 +63,11 @@ end
 """
     get_increment(scan_sim) -> Float64
 
-Angle between neighboring beams, in radians.
+The angle between adjacent beams, in radians.
 """
 get_increment(sim::ScanSimulator2D) = sim.angle_increment
 
-# Angle-table position of the first beam, as in Python's get_scan.
+# The position of the first beam in the angle table, as in get_scan of the Python code.
 function _first_theta_index(sim::ScanSimulator2D, theta::Float64)
     theta_dis = Float64(sim.theta_dis)
     theta_index = sim.theta_dis * (theta - sim.fov / 2.0) / (2.0 * pi)
@@ -80,7 +81,8 @@ end
 """
     get_scan!(scan, sim, pose) -> scan
 
-Noise-free scan from `pose = (x, y, θ)` into `scan` (length `num_beams`).
+Write a scan with no noise from `pose = (x, y, θ)` into `scan` (length
+`num_beams`).
 """
 function get_scan!(scan::AbstractVector{Float64}, sim::ScanSimulator2D, pose)
     sim.map === nothing && throw(ArgumentError("Map is not set for scan simulator."))
@@ -93,8 +95,8 @@ end
     scan!(out, sim, pose, rng; std_dev=0.01) -> out
     scan(sim, pose, rng; std_dev=0.01) -> Vector{Float64}
 
-Scan from `pose` with N(0, `std_dev`) noise added to every beam, drawn from
-`rng`; `rng = nothing` gives a noise-free scan.
+A scan from `pose`, with N(0, `std_dev`) noise from `rng` added to each
+beam. With `rng = nothing`, the scan has no noise.
 """
 function scan!(out::AbstractVector{Float64}, sim::ScanSimulator2D, pose, rng::Union{Nothing,AbstractRNG};
     std_dev::Real=0.01)
@@ -115,8 +117,9 @@ scan(sim::ScanSimulator2D, pose, rng::Union{Nothing,AbstractRNG}; std_dev::Real=
 """
     check_ttc(scan, vel, scan_angles, cosines, side_distances, ttc_thresh) -> Bool
 
-Instantaneous time-to-collision check against the environment: true when any
-beam's iTTC is in `[0, ttc_thresh)`. (`scan_angles` is unused, as in Python.)
+An instantaneous time-to-collision check against the environment. It is
+true if the iTTC of a beam is in `[0, ttc_thresh)`. (The function does not
+use `scan_angles`, as in the Python code.)
 """
 function check_ttc(scan::AbstractVector{Float64}, vel::Float64, scan_angles::AbstractVector{Float64},
     cosines::AbstractVector{Float64}, side_distances::AbstractVector{Float64}, ttc_thresh::Float64)
@@ -132,8 +135,8 @@ end
 
 @inline _cross(v1::Vec2, v2::Vec2) = v1[1] * v2[2] - v1[2] * v2[1]
 
-# Distance from `o` along the beam whose normal is `v3` = (cos(θ + π/2),
-# sin(θ + π/2)) to the edge va-vb; Inf when the beam misses it.
+# The distance from `o` to the edge va-vb, along the beam with the normal
+# `v3` = (cos(θ + π/2), sin(θ + π/2)). Inf if the beam does not hit the edge.
 @inline function _get_range(o::Vec2, v3::Vec2, va::Vec2, vb::Vec2)
     v1 = o - va
     v2 = vb - va
@@ -151,13 +154,15 @@ end
 """
     get_range(pose, beam_theta, va, vb) -> Float64
 
-Distance along the world-frame beam angle `beam_theta` from `pose` to edge `va`-`vb`.
+The distance from `pose` to the edge `va`-`vb`, along the beam angle
+`beam_theta` (in the world frame).
 """
 get_range(pose, beam_theta::Real, va, vb) =
     _get_range(Vec2(pose[1], pose[2]), Vec2(cos(beam_theta + pi / 2.0), sin(beam_theta + pi / 2.0)), Vec2(va), Vec2(vb))
 
-# numpy.argmin(abs(scan_angles - a)) for evenly spaced angles: jump to the
-# nearest index, then check its neighbors so ties go to the first, as argmin.
+# numpy.argmin(abs(scan_angles - a)) for angles at equal intervals: go to the
+# nearest index, then examine its neighbors. If two are equal, use the first,
+# as argmin does.
 function _nearest_angle_index(scan_angles::AbstractVector{Float64}, a::Float64)
     n = length(scan_angles)
     step = (scan_angles[n] - scan_angles[1]) / (n - 1)
@@ -168,7 +173,7 @@ end
 """
     get_blocked_view_indices(pose, vertices, scan_angles) -> (min_index, max_index)
 
-Range of beam indices that can see the car with corners `vertices`.
+The range of beam indices that can see the car with the corners `vertices`.
 """
 function get_blocked_view_indices(pose, vertices, scan_angles::AbstractVector{Float64})
     px, py, pth = Float64(pose[1]), Float64(pose[2]), Float64(pose[3])
@@ -192,7 +197,8 @@ end
 """
     ray_cast!(pose, scan, scan_angles, vertices) -> scan
 
-Shorten the beams of `scan` (taken at `pose`) that hit the car with corners `vertices`.
+Make the beams of `scan` (taken at `pose`) shorter where they hit the car
+with the corners `vertices`.
 """
 function ray_cast!(pose, scan::AbstractVector{Float64}, scan_angles::AbstractVector{Float64}, vertices)
     o = Vec2(pose[1], pose[2])

@@ -1,4 +1,4 @@
-# Car-body geometry and GJK collision checks, ported from
+# The geometry of the car body and the GJK collision checks, a port of
 # f110_gym/envs/collision_models.py.
 
 const Vec2 = SVector{2,Float64}
@@ -7,8 +7,8 @@ const CarVertices = SVector{4,Vec2}
 """
     get_vertices(pose, length, width) -> SVector{4,SVector{2,Float64}}
 
-Corners of a car body at `pose = (x, y, θ)`, in Python's order: rear-left,
-rear-right, front-right, front-left.
+The corners of a car body at `pose = (x, y, θ)`, in the order of the Python
+code: rear-left, rear-right, front-right, front-left.
 """
 @inline function get_vertices(pose, length::Real, width::Real)
     x, y, th = Float64(pose[1]), Float64(pose[2]), Float64(pose[3])
@@ -45,7 +45,8 @@ end
 """
     collision(vertices1, vertices2) -> Bool
 
-GJK overlap test between two convex polygons, each given as a list of 2D points.
+A GJK overlap test between two convex polygons. Each polygon is a list of
+2D points.
 """
 function collision(vertices1, vertices2)
     v1 = _as_points(vertices1)
@@ -107,8 +108,9 @@ _as_points(v::AbstractMatrix) = [Vec2(v[i, 1], v[i, 2]) for i in axes(v, 1)]
 """
     collision_multiple(vertices) -> (collisions::Vector{Float64}, collision_idx::Vector{Int})
 
-Pairwise GJK checks over every body. `collisions[i]` is `1.0` when body `i`
-touches any other body; `collision_idx[i]` is the last body it hit, or `-1`.
+GJK checks on each pair of bodies. `collisions[i]` is `1.0` if body `i`
+touches a different body. `collision_idx[i]` is the last body that it hit,
+or `-1`.
 """
 function collision_multiple(vertices::AbstractVector)
     n = length(vertices)

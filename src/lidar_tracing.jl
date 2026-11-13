@@ -1,35 +1,39 @@
-# Beam tracing for ScanSimulator2D: Python's trace_ray / get_scan loop, made
-# fast without changing a single output bit.
+# Beam tracing for ScanSimulator2D: the trace_ray / get_scan loop of the
+# Python code, made fast with no change to the output bits.
 #
-# Each beam is sphere-traced through the distance table: step forward by the
-# distance to the nearest obstacle until that distance drops below `eps` or
-# the beam passes `max_range`. Each step depends on the previous lookup, so
-# one beam at a time leaves the CPU waiting on memory. Both tracers below
-# march many beams at once instead:
+# The tracer sphere-traces each beam through the distance table. It moves
+# forward by the distance to the nearest obstacle, until that distance is
+# less than `eps` or the beam goes past `max_range`. Each step needs the
+# result of the previous lookup. Thus with one beam at a time, the CPU waits
+# for the memory. The two tracers below march many beams at the same time:
 #
-# - `_trace_interleaved!` keeps 16 beams in flight round-robin (scalar code);
-# - `_trace_simd!` advances 16 beams per SIMD vector, with masked gathers.
+# - `_trace_interleaved!` keeps 16 beams active in turn (scalar code).
+# - `_trace_simd!` moves 16 beams forward in each SIMD vector, with masked
+#   gathers.
 #
-# Every beam still does exactly Python's arithmetic, in Python's order, so the
-# two tracers and Python agree bit for bit. `TRACER[]` picks one; `:auto`
-# times both once per session and keeps the faster (SIMD needs fast gathers,
-# e.g. AVX-512).
+# Each beam does the arithmetic of the Python code exactly, in the same
+# order. Thus the two tracers and the Python code agree bit for bit.
+# `TRACER[]` selects one. `:auto` measures the time of the two, one time in
+# each session, and keeps the faster one. (SIMD needs fast gathers, for
+# example AVX-512.)
 
 """
     F1Tenth.TRACER[] = :auto | :simd | :scalar
 
-LiDAR tracer to use. Both give identical scans; `:auto` (the default) picks
-the faster one for this CPU on first use.
+The LiDAR tracer. The two tracers give identical scans. `:auto` (the
+default) selects the faster one for this CPU when you use it for the first
+time.
 """
 const TRACER = Ref(:auto)
 const _SIMD_FASTER = Ref{Union{Nothing,Bool}}(nothing)
 
 const _LANES = 16   # beams in flight, for both tracers
 
-# Distance to the nearest obstacle at a world point, as Python's
-# distance_transform(). Points off the map read dt[end, end] (numpy's
-# dt[-1, -1]). With `Rotated = false` (zero origin yaw, as in every bundled
-# map) the identity rotation is skipped, which gives identical coordinates.
+# The distance to the nearest obstacle at a world point, as
+# distance_transform() of the Python code. Points that are not on the map
+# read dt[end, end] (dt[-1, -1] in numpy). With `Rotated = false` (zero yaw
+# at the origin, as in all the maps of the package), the lookup does not do
+# the identity rotation. The coordinates are identical.
 struct DTLookup{Rotated}
     dt::Matrix{Float64}
     ox::Float64
@@ -67,7 +71,8 @@ _is_rotated(sim) = !(sim.orig_c == 1.0 && sim.orig_s == 0.0)
     return @inbounds L.dt[r+1, c+1]
 end
 
-# The angle table position of the next beam, as Python steps it.
+# The position of the next beam in the angle table, as the Python code
+# calculates it.
 @inline function _next_theta_index(theta_index::Float64, incr::Float64, theta_dis::Float64)
     theta_index += incr
     while theta_index >= theta_dis
@@ -76,9 +81,9 @@ end
     return theta_index
 end
 
-# Trace every beam of a scan from (x0, y0) into `scan`, starting at angle
-# table position `theta_index`. Dispatches on the map's rotation so each
-# tracer is compiled for a concrete lookup.
+# Trace each beam of a scan from (x0, y0) into `scan`, from the position
+# `theta_index` in the angle table. The function dispatches on the rotation
+# of the map, thus Julia compiles each tracer for a concrete lookup.
 function _trace_beams!(scan::AbstractVector{Float64}, sim, x0::Float64, y0::Float64, theta_index::Float64)
     if _is_rotated(sim)
         return _trace_beams!(scan, sim, DTLookup{true}(sim), x0, y0, theta_index)
@@ -101,8 +106,9 @@ function _use_simd()
 end
 
 # ---------------------------------------------------------------------------
-# Scalar tracer: _LANES beams in flight. When a beam finishes, its lane takes
-# the next one, so the CPU always has independent lookups to overlap.
+# Scalar tracer: _LANES beams are active. When a beam is complete, its lane
+# takes the next beam. Thus the CPU always has independent lookups to
+# overlap.
 
 function _trace_interleaved!(scan, sim, lookup::DTLookup, x0::Float64, y0::Float64, theta_index::Float64)
     eps, max_range = sim.eps, sim.max_range
@@ -131,7 +137,7 @@ function _trace_interleaved!(scan, sim, lookup::DTLookup, x0::Float64, y0::Float
                 xs[k], ys[k], ds[k], tots[k] = x, y, d, tot + d
                 continue
             end
-            # beam done: record it and give the lane the next beam
+            # the beam is complete: record it, and give the lane the next beam
             b > 0 && (scan[b] = tot > max_range ? max_range : tot)
             if next > length(scan)
                 beams[k] = 0
@@ -150,9 +156,9 @@ function _trace_interleaved!(scan, sim, lookup::DTLookup, x0::Float64, y0::Float
 end
 
 # ---------------------------------------------------------------------------
-# SIMD tracer: consecutive groups of _LANES beams march together, one lane per
-# beam, until every lane is done. Neighboring beams take similar numbers of
-# steps, so few lanes sit idle.
+# SIMD tracer: each group of _LANES adjacent beams marches together, one
+# lane for each beam, until all lanes are complete. Adjacent beams take
+# similar numbers of steps, thus few lanes have no work.
 
 function _trace_simd!(scan, sim, L::DTLookup{Rotated}, x0::Float64, y0::Float64,
     theta_index::Float64) where {Rotated}
@@ -198,7 +204,7 @@ function _trace_simd!(scan, sim, L::DTLookup{Rotated}, x0::Float64, y0::Float64,
             on_map = (x_rot >= 0.0) & (x_rot < L.w_res) & (y_rot >= 0.0) & (y_rot < L.h_res)
             col = min(convert(I, x_rot / L.res), L.w - 1)
             row = min(convert(I, y_rot / L.res), L.h - 1)
-            # every lane gets an in-bounds index, even masked-off ones
+            # each lane gets an index in the bounds, also the masked lanes
             idx = vifelse(active & on_map, row + col * L.h + 1, off_map)
             dn = vgather(table, idx, active)
             d = vifelse(active, dn, d)
@@ -215,7 +221,7 @@ end
 
 # ---------------------------------------------------------------------------
 
-# Time both tracers on a synthetic room with scattered obstacles.
+# Measure the time of the two tracers in a synthetic room with obstacles.
 function _simd_is_faster()
     raw = fill(0xff, 400, 400)
     raw[[1, end], :] .= 0x00

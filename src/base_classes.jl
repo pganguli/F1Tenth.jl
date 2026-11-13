@@ -1,9 +1,9 @@
-# RaceCar and Simulator, ported from f110_gym/envs/base_classes.py.
+# RaceCar and Simulator, a port of f110_gym/envs/base_classes.py.
 
 """
     Integrator.RK4, Integrator.Euler
 
-Integrator for the vehicle dynamics, as Python's `Integrator` enum.
+The integrator for the vehicle dynamics, as the `Integrator` enum of the Python code.
 """
 module Integrator
 @enum T RK4 = 1 Euler = 2
@@ -14,8 +14,8 @@ const Pose = SVector{3,Float64}    # x, y, yaw
 
 @inline _pose(s::State) = Pose(s[1], s[2], s[5])
 
-# The LiDAR's beam angles relative to the car, shared by a simulator's cars
-# like the class attributes of Python's RaceCar.
+# The beam angles of the LiDAR, relative to the car. All the cars of a
+# simulator share them, as the class attributes of RaceCar in the Python code.
 struct LidarGeometry
     scan_angles::Vector{Float64}
 end
@@ -24,16 +24,16 @@ LidarGeometry(num_beams::Int, fov::Float64, scan_ang_incr::Float64) =
     LidarGeometry([-fov / 2.0 + (i - 1) * scan_ang_incr for i in 1:num_beams])
 
 # The LiDAR is a Hokuyo UST-10LX (specification C-42-04077): 1081 steps over
-# 270°, 0.25° apart, swept counterclockwise. Beam directions come from an
-# angle table; 14400 entries (ten per 0.25° step) keep the beams 0.25° apart
-# and within 0.025° of their true direction (Python's 2000 snap them by up to
-# 0.18°).
+# 270°, 0.25° apart, in a counterclockwise sweep. The beam directions come
+# from an angle table. Its 14400 entries (ten for each 0.25° step) keep the
+# beams 0.25° apart, and correct to 0.025°. (The 2000 entries of the Python
+# code move the beams by up to 0.18°.)
 const LIDAR_BEAMS = 1081
 const LIDAR_FOV = 3pi / 2
 const LIDAR_THETA_DIS = 14400
-# What the sensor outputs for a measurement error (the specification's
-# "Measurement Data"): 4 mm for a distance under 21 mm, and 65533 mm when
-# no object is in range or its reflectivity is too low.
+# The outputs of the sensor for a measurement error ("Measurement Data" in
+# the specification): 4 mm for a distance of less than 21 mm, and 65533 mm
+# when there is no object in range, or its reflectivity is too low.
 const LIDAR_MIN_RANGE = 0.021
 const LIDAR_TOO_CLOSE = 0.004
 const LIDAR_NO_ECHO = 65.533
@@ -45,15 +45,18 @@ _lidar_scan_simulator(num_beams=LIDAR_BEAMS, fov=LIDAR_FOV; max_range=30.0) =
             integrator=Integrator.Euler, lidar_dist=params.lidar_x - params.lr, lidar_sweep=true)
 
 One vehicle: the vehicle model, its low-level actuator chain (command
-limiter, steering servo, VESC speed loop; see [`F1Tenth.actuate!`](@ref)) and a
-LiDAR scanning at `params.scan_rate`. With `lidar_sweep` each beam is taken
-from the pose at its own time in the sweep, as the real sensor does;
-without, the whole scan is taken from the pose at its first beam. `state` is `(x, y, steer_angle, vel, yaw_angle, yaw_rate,
-slip_angle)`. Scan noise is drawn from `scan_rng`; set it to
-`nothing` for noise-free scans (as `rng=None` in Python).
+limiter, steering servo and VESC speed loop; see
+[`F1Tenth.actuate!`](@ref)) and a LiDAR that scans at `params.scan_rate`.
 
-Cars made by a [`Simulator`](@ref) share its scan simulator and beam tables,
-like the class attributes of Python's `RaceCar`.
+- With `lidar_sweep`, the car takes each beam from the pose at the time of
+  that beam in the sweep, as the real sensor does. Without it, the car takes
+  the full scan from the pose at its first beam.
+- `state` is `(x, y, steer_angle, vel, yaw_angle, yaw_rate, slip_angle)`.
+- The scan noise comes from `scan_rng`. For scans with no noise, set it to
+  `nothing` (as `rng=None` in the Python code).
+
+The cars that a [`Simulator`](@ref) makes share its scan simulator and beam
+tables, as the class attributes of `RaceCar` in the Python code.
 """
 mutable struct RaceCar
     params::VehicleParams
@@ -71,19 +74,19 @@ mutable struct RaceCar
     scan_rng::Union{Nothing,Xoshiro}
     scan_simulator::ScanSimulator2D
     lidar::LidarGeometry
-    current_scan::Vector{Float64}   # the latest LiDAR scan, held between scans
-    noise::Vector{Float64}          # scratch for the scan noise
+    current_scan::Vector{Float64}   # the latest LiDAR scan, kept until the next scan
+    noise::Vector{Float64}          # work array for the scan noise
     lidar_sweep::Bool
-    clock::Float64                  # time since reset (s)
-    scan_wait::Float64              # time until the next sweep starts (s)
+    clock::Float64                  # time from the reset (s)
+    scan_wait::Float64              # time to the start of the next sweep (s)
     sweeping::Bool
-    sweep_start::Float64            # clock at the sweep's first beam
+    sweep_start::Float64            # clock at the first beam of the sweep
     sweep_dt::Float64               # spacing of sweep_poses (s)
-    sweep_poses::Vector{Pose}       # the car's poses through the sweep
-    sweep_done::Bool                # a sweep finished this step: trace it
-    scan_new::Bool                  # current_scan is new: add the other cars
+    sweep_poses::Vector{Pose}       # the poses of the car during the sweep
+    sweep_done::Bool                # a sweep finished in this step: trace it
+    scan_new::Bool                  # current_scan is new: add the other cars to it
     scan_time::Float64              # clock at the first beam of current_scan
-    scan_origin::Pose               # LiDAR pose at the middle of current_scan
+    scan_origin::Pose               # pose of the LiDAR at the middle of current_scan
 end
 
 function RaceCar(params::VehicleParams, seed::Integer; is_ego::Bool=false, time_step::Real=0.01,
@@ -99,15 +102,17 @@ end
 """
     update_params!(car::RaceCar, params)
 
-Replace the car's parameters (a `VehicleParams` or a dict). Collisions with
-walls and other cars follow a new body size (Python keeps the old one).
+Replace the parameters of the car (a `VehicleParams` or a dict). The
+collisions with walls and other cars use the new body size. (The Python
+code keeps the old size.)
 """
 update_params!(car::RaceCar, params) = (car.params = convert(VehicleParams, params); nothing)
 
 """
     set_map!(car::RaceCar, map_path, map_ext)
 
-Set the map of the car's scan simulator (shared with its simulator's other cars).
+Set the map of the scan simulator of the car. (The other cars of its
+simulator share the scan simulator.)
 """
 set_map!(car::RaceCar, map_path::AbstractString, map_ext::AbstractString) =
     set_map!(car.scan_simulator, map_path, map_ext)
@@ -115,10 +120,11 @@ set_map!(car::RaceCar, map_path::AbstractString, map_ext::AbstractString) =
 """
     reset!(car::RaceCar, pose)
 
-Put the car at rest at `pose = (x, y, θ)`, reset its actuator chain, clock
-and collision flag, and restart its scan noise from `seed`. With a map set,
-it takes a first scan there (the car is at rest, so the sweep doesn't
-matter); the next sweep starts one scan period later.
+Put the car at rest at `pose = (x, y, θ)`. Reset its actuator chain, its
+clock and its collision flag, and start its scan noise again from `seed`.
+If the car has a map, it takes a first scan there. (The car does not move,
+thus the sweep has no effect.) The next sweep starts one scan period
+later.
 """
 function reset!(car::RaceCar, pose)
     reset!(car.actuators)
@@ -140,8 +146,9 @@ end
 """
     ray_cast_agents!(car, scan) -> scan
 
-Shorten `scan` where the other cars (at `car.opp_poses`) block the beams,
-seen from the LiDAR's pose at the middle of the scan.
+Make the ranges in `scan` shorter where the other cars (at
+`car.opp_poses`) block the beams, as the LiDAR sees them from its pose at
+the middle of the scan.
 """
 function ray_cast_agents!(car::RaceCar, scan::AbstractVector{Float64})
     pose = car.scan_origin
@@ -165,14 +172,18 @@ end
 """
     actuate!(car::RaceCar, steer, speed)
 
-Advance `car` one time step under the planner command `(steer, speed)`:
-the command limiter ticks at `command_rate`, the VESC speed loop and the
-steering servo run at `vesc_rate`, and the vehicle model is integrated over
-each of those sub-steps with the car's integrator. After each sub-step the
-body is checked against the walls ([`F1Tenth.body_hits_wall`](@ref)); on a
-hit the car stops where it is, keeping its heading, for the rest of the
-step. LiDAR sweeps start on the same sub-steps, and the car's pose is
-recorded through each sweep.
+Move `car` forward by one time step with the planner command
+`(steer, speed)`:
+
+- The command limiter ticks at `command_rate`.
+- The VESC speed loop and the steering servo run at `vesc_rate`.
+- The integrator of the car integrates the vehicle model over each of these
+  sub-steps.
+- After each sub-step, the function compares the body with the walls
+  ([`F1Tenth.body_hits_wall`](@ref)). After a hit, the car stops where it
+  is, keeps its heading and stays there for the remaining part of the step.
+- The LiDAR sweeps start on the same sub-steps. The function records the
+  pose of the car during each sweep.
 """
 function actuate!(car::RaceCar, steer::Float64, speed::Float64)
     a, p = car.actuators, car.params
@@ -193,13 +204,13 @@ function actuate!(car::RaceCar, steer::Float64, speed::Float64)
             push!(car.sweep_poses, _pose(s))
             car.scan_wait += 1 / p.scan_rate
         end
-        # the VESC sees the motor speed, here the car's forward speed (no
-        # wheel slip state)
+        # the VESC sees the motor speed. Here, this is the forward speed of
+        # the car (the model has no wheel slip)
         _vesc_step!(a, p.erpm_gain * s[4] * cos(s[7]), h, p)
         servo = (a.steer_out - s[3]) / p.tau_steer
         if !car.in_collision
             s = _integrate(s, SVector(servo, force * a.current), p, h, car.integrator)
-            if _hits_wall(car, s)   # stop where it is, keeping the heading
+            if _hits_wall(car, s)   # stop where it is, and keep the heading
                 s = State(s[1], s[2], s[3], 0.0, s[5], 0.0, 0.0)
                 stop_motor!(a)
                 car.in_collision = true
@@ -222,15 +233,15 @@ end
 """
     update_pose!(car, raw_steer, vel) -> scan
 
-Advance the car one time step under the planner command (steering angle,
-speed), through its actuator chain. If a LiDAR sweep finished in the step, trace
-it (see [`RaceCar`](@ref)); otherwise the previous scan is kept. The scan is
-the car's own buffer.
+Move the car forward by one time step with the planner command (steering
+angle, speed), through its actuator chain. If a LiDAR sweep finished in the
+step, trace it (see [`RaceCar`](@ref)). If not, the car keeps the previous
+scan. The returned scan is the buffer of the car.
 """
 function update_pose!(car::RaceCar, raw_steer::Real, vel::Real)
     actuate!(car, Float64(raw_steer), Float64(vel))
     s = car.state
-    # bound yaw angle
+    # keep the yaw angle in its range
     yaw = s[5]
     if yaw > 2 * pi
         yaw -= 2 * pi
@@ -247,18 +258,18 @@ function update_pose!(car::RaceCar, raw_steer::Real, vel::Real)
     return car.current_scan
 end
 
-# Seconds the LiDAR takes to sweep its field of view.
+# The time (s) that the LiDAR takes to sweep its field of view.
 _sweep_time(car::RaceCar) = car.fov / 2pi / car.params.scan_rate
 
-# The traced distances as the sensor reports them: range noise on valid
-# distances; the error outputs for one too close, or past `scan_range` (the
-# tracer stops there and returns it).
+# The traced distances as the sensor gives them: range noise on the valid
+# distances, and the error outputs for a distance that is too short or more
+# than `scan_range` (the tracer stops there and returns that value).
 function _sensor_output!(car::RaceCar)
     out, sd, far = car.current_scan, car.params.scan_noise, car.scan_simulator.max_range
     if car.scan_rng === nothing
         fill!(car.noise, 0.0)
     else
-        randn!(car.scan_rng, car.noise)   # drawn in one batch
+        randn!(car.scan_rng, car.noise)   # all the noise in one call
     end
     noise = car.noise
     @inbounds @simd for i in eachindex(out)
@@ -271,9 +282,10 @@ end
 _interpolate(a::Pose, b::Pose, f) =
     Pose(a[1] + f * (b[1] - a[1]), a[2] + f * (b[2] - a[2]), a[3] + f * rem2pi(b[3] - a[3], RoundNearest))
 
-# Trace the finished sweep into current_scan. Beams are taken counterclockwise,
-# evenly over the sweep; each run of beams inside one sub-step of
-# sweep_poses is traced from the pose interpolated to the run's middle.
+# Trace the finished sweep into current_scan. The beams are counterclockwise,
+# at equal intervals over the sweep. The function traces each series of beams
+# in one sub-step of sweep_poses from the pose interpolated to the middle of
+# that series.
 function _trace_sweep!(car::RaceCar)
     sim, scan, poses = car.scan_simulator, car.current_scan, car.sweep_poses
     if !car.lidar_sweep
@@ -282,7 +294,7 @@ function _trace_sweep!(car::RaceCar)
     end
     n, last_k = length(scan), length(poses) - 2
     beam_dt, h = _sweep_time(car) / (n - 1), car.sweep_dt
-    substep(b) = min(floor(Int, (b - 1) * beam_dt / h), last_k)   # 0-based sub-step of beam b
+    substep(b) = min(floor(Int, (b - 1) * beam_dt / h), last_k)   # sub-step of beam b (from 0)
     theta_dis = Float64(sim.theta_dis)
     i = 1
     while i <= n
@@ -304,7 +316,7 @@ end
 """
     update_opp_poses!(car, opp_poses)
 
-Tell the car where the other cars are (a list of `(x, y, θ)`).
+Give the car the poses of the other cars (a list of `(x, y, θ)`).
 """
 function update_opp_poses!(car::RaceCar, opp_poses)
     resize!(car.opp_poses, length(opp_poses))
@@ -325,11 +337,11 @@ function update_scan!(car::RaceCar, scan::AbstractVector{Float64})
     return ray_cast_agents!(car, scan)
 end
 
-# Where the LiDAR is when the car is at `pose`.
+# The pose of the LiDAR when the car is at `pose`.
 _lidar_pose(car::RaceCar, pose) =
     Pose(pose[1] + car.lidar_dist * cos(pose[3]), pose[2] + car.lidar_dist * sin(pose[3]), pose[3])
 
-# Whether the car's body at state `s` overlaps a wall (see body_hits_wall).
+# True if the body of the car at state `s` overlaps a wall (see body_hits_wall).
 function _hits_wall(car::RaceCar, s::State)
     m = car.scan_simulator.map
     return m !== nothing && body_hits_wall(m, s[1], s[2], s[5], car.params.length, car.params.width)
@@ -340,15 +352,18 @@ end
 """
     Observation
 
-What [`step!`](@ref) and [`reset!`](@ref) return: the entries of Python's
-observation dict (`ego_idx`, `scans`, `poses_x`, `poses_y`, `poses_theta`,
-`linear_vels_x`, `linear_vels_y`, `ang_vels_z`, `collisions`, `lap_times`,
-`lap_counts`). Read them as `obs.poses_x`, `obs[:poses_x]` or `obs["poses_x"]`.
+The value that [`step!`](@ref) and [`reset!`](@ref) return. It has the
+entries of the observation dict of the Python code (`ego_idx`, `scans`,
+`poses_x`, `poses_y`, `poses_theta`, `linear_vels_x`, `linear_vels_y`,
+`ang_vels_z`, `collisions`, `lap_times` and `lap_counts`). To read them, use
+`obs.poses_x`, `obs[:poses_x]` or `obs["poses_x"]`.
 
-`scan_times` (not in Python) is the time since reset of the first beam of
-each car's scan in `scans`, as ROS stamps a scan.
+`scan_times` (not in the Python code) is the time from the reset to the
+first beam of the scan of each car in `scans`, as ROS gives the time of a
+scan.
 
-The arrays are reused: each step overwrites them. `copy(obs)` keeps a snapshot.
+The env uses the same arrays for all steps: each step writes new values
+into them. To keep the values of one step, use `copy(obs)`.
 """
 struct Observation
     ego_idx::Int
@@ -375,21 +390,21 @@ Base.copy(o::Observation) = Observation((deepcopy(getfield(o, f)) for f in field
     Simulator(params, num_agents, seed; time_step=0.01, ego_idx=1,
               integrator=Integrator.RK4, lidar_dist=nothing, lidar_sweep=true)
 
-All the cars of an environment and their interactions. Cars are numbered
-from 1.
+All the cars of an environment and their interactions. The car numbers
+start at 1.
 """
 mutable struct Simulator
     num_agents::Int
     seed::Int
     time_step::Float64
     ego_idx::Int
-    params::VehicleParams          # as given at construction
+    params::VehicleParams          # the value from the construction
     agent_poses::Vector{Pose}
     agents::Vector{RaceCar}
     collisions::Vector{Float64}
     collision_idx::Vector{Int}
     scan_simulator::ScanSimulator2D
-    vertices::Vector{CarVertices}  # scratch for check_collision!
+    vertices::Vector{CarVertices}  # work array for check_collision!
     obs::Observation
 end
 
@@ -410,7 +425,7 @@ end
 """
     set_map!(sim::Simulator, map_path, map_ext)
 
-Set the map used by every car's LiDAR.
+Set the map that the LiDAR of each car uses.
 """
 set_map!(sim::Simulator, map_path::AbstractString, map_ext::AbstractString) =
     set_map!(sim.scan_simulator, map_path, map_ext)
@@ -418,7 +433,8 @@ set_map!(sim::Simulator, map_path::AbstractString, map_ext::AbstractString) =
 """
     update_params!(sim::Simulator, params; agent_idx=-1)
 
-Update car `agent_idx`'s parameters, or every car's when `agent_idx` is negative.
+Update the parameters of car `agent_idx`, or of all cars if `agent_idx` is
+negative.
 """
 function update_params!(sim::Simulator, params; agent_idx::Integer=-1)
     if agent_idx < 0
@@ -433,7 +449,7 @@ end
 """
     check_collision!(sim)
 
-GJK check between every pair of cars.
+Do a GJK collision check on each pair of cars.
 """
 function check_collision!(sim::Simulator)
     for (i, agent) in enumerate(sim.agents)
@@ -446,8 +462,9 @@ end
 """
     F1Tenth.THREAD_AGENTS[] = true | false
 
-With more than one Julia thread, step each car on its own thread (default
-`true`). Set to `false` when running many simulators in parallel yourself.
+If `true` (the default) and Julia has more than one thread, each car steps
+on its own thread. If you run many simulators in parallel yourself, set it
+to `false`.
 """
 const THREAD_AGENTS = Ref(true)
 
@@ -466,8 +483,9 @@ end
 """
     step!(sim::Simulator, control_inputs) -> Observation
 
-Advance every car one step. `control_inputs` is `num_agents × 2`: desired
-steering angle in column 1, desired speed in column 2.
+Move all cars forward by one step. `control_inputs` is `num_agents × 2`:
+the requested steering angle in column 1, and the requested speed in
+column 2.
 """
 function step!(sim::Simulator, control_inputs::AbstractMatrix{<:Real})
     size(control_inputs) == (sim.num_agents, 2) ||
@@ -478,7 +496,7 @@ function step!(sim::Simulator, control_inputs::AbstractMatrix{<:Real})
     end
     check_collision!(sim)
     for (i, agent) in enumerate(sim.agents)
-        # every other car's pose, without allocating
+        # the poses of all other cars, with no new memory
         resize!(agent.opp_poses, sim.num_agents - 1)
         for j in 1:sim.num_agents-1
             agent.opp_poses[j] = sim.agent_poses[j < i ? j : j + 1]

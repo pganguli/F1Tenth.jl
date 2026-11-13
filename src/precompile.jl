@@ -1,4 +1,4 @@
-# Compile the common path (load a map, reset, step) ahead of time so the first
+# Compile the usual path (load a map, reset, step) before use. Thus the first
 # env.step! in a session is fast.
 @setup_workload begin
     poses = [0.0 0.0 0.0; 2.0 0.0 0.0]

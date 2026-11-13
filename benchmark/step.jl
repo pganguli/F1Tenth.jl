@@ -1,7 +1,8 @@
-# step! time for 1, 2 and 4 cars on the example map, LiDAR noise on, every
-# car driving the raceline with the example's pure pursuit; only step! is
-# timed. Run from the repository root (the examples environment has GLMakie,
-# which the example loads):
+# The step! time for 1, 2 and 4 cars on the example map, with LiDAR noise.
+# All cars drive on the raceline with the pure pursuit of the example. The
+# script measures only the time of step!. Run it from the root of the
+# repository (the examples environment has GLMakie, which the example
+# loads):
 #
 #   julia --project=examples -t 1 benchmark/step.jl
 #   julia --project=examples -t 4 benchmark/step.jl
@@ -16,7 +17,7 @@ gain = W.WORK["vgain"]; tlad = W.WORK["tlad"]
 function bench(n; steps=3000)
     env = Logging.with_logger(() -> F110Env(map=conf["map_path"], map_ext=conf["map_ext"], num_agents=n, timestep=0.01,
         integrator=F1Tenth.Integrator.RK4), Logging.NullLogger())
-    idx = [1 + (k - 1) * 150 for k in 1:n]   # spread along the raceline, facing along it
+    idx = [1 + (k - 1) * 150 for k in 1:n]   # at intervals along the raceline, in its direction
     obs, = reset!(env, hcat(wp[idx, xi], wp[idx, yi], wp[idx, ti] .+ pi/2))
     act = zeros(n, 2)
     function plan!(obs)

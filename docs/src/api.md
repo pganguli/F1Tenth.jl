@@ -1,7 +1,8 @@
 # API
 
-The layers mirror the Python package: the gym environment, the simulator
-and its cars, then the dynamics, collision and LiDAR models.
+The layers are the same as in the Python package: the gym environment,
+the simulator and its cars, and then the dynamics, collision and LiDAR
+models.
 
 ## Environment
 

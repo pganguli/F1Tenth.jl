@@ -1,13 +1,14 @@
-# Map loading for the LiDAR: a ROS map (yaml + image) read the way Python's
-# ScanSimulator2D.set_map does, plus its distance transform. Loaded maps are
-# cached, so many envs on one map share one copy.
+# Map loading for the LiDAR: a ROS map (yaml file and image), read as
+# ScanSimulator2D.set_map of the Python code reads it, and its distance
+# transform. The package keeps loaded maps in a cache. Thus many envs on one
+# map share one copy.
 
 """
     MapData
 
-A loaded occupancy map. `raw` holds the image's gray values with row 1 at
-the bottom of the picture (Python flips it the same way); `dt` is the
-distance in meters from each cell to the nearest obstacle.
+A loaded occupancy map. `raw` has the gray values of the image, with row 1
+at the bottom of the image (the Python code turns it over in the same way).
+`dt` is the distance in meters from each cell to the nearest obstacle.
 """
 struct MapData
     raw::Matrix{UInt8}
@@ -19,7 +20,8 @@ end
 const _MAP_CACHE = Dict{Tuple{String,String,Float64,Int},MapData}()
 const _MAP_CACHE_LOCK = ReentrantLock()
 
-# Python's env documents extensions without the dot ("png") but only works with it.
+# The documentation of the Python env gives extensions without the dot
+# ("png"), but the env works only with the dot.
 _normalize_ext(ext::AbstractString) = startswith(ext, ".") ? String(ext) : "." * ext
 
 _map_image_path(map_path, map_ext) = first(splitext(map_path)) * _normalize_ext(map_ext)
@@ -27,9 +29,9 @@ _map_image_path(map_path, map_ext) = first(splitext(map_path)) * _normalize_ext(
 """
     load_map(map_path, map_ext) -> MapData
 
-Load the map yaml at `map_path` and its image `<map_path without
-extension><map_ext>`. Pixels `<= 128` are obstacles. Cached by path and
-modification time.
+Load the map yaml file at `map_path`, and its image `<map_path without
+extension><map_ext>`. Pixels `<= 128` are obstacles. The cache uses the path
+and the modification time.
 """
 function load_map(map_path::AbstractString, map_ext::AbstractString)
     yaml_path = abspath(map_path)
@@ -48,8 +50,9 @@ function _read_map(yaml_path::String, img_path::String)
     return MapData(raw, distance_transform(raw, resolution), resolution, origin)
 end
 
-# Gray values 0-255, flipped so row 1 is the bottom row of the picture.
-# 8-bit grayscale (every bundled map) is copied byte for byte.
+# Gray values 0-255, turned over so that row 1 is the bottom row of the
+# image. The function copies 8-bit grayscale images (all the maps of the
+# package) byte for byte.
 function _flipped_gray(img::AbstractMatrix{ColorTypes.Gray{ColorTypes.N0f8}})
     h = size(img, 1)
     bytes = reinterpret(UInt8, img)
@@ -63,32 +66,33 @@ function _flipped_gray(img::AbstractMatrix)
 end
 
 # ---------------------------------------------------------------------------
-# Car against the map
+# The car against the map
 
 """
     body_hits_wall(map, x, y, θ, length, width) -> Bool
 
-Whether a car body, the `length` × `width` rectangle centered at `(x, y)`
-with heading `θ`, overlaps a wall cell of `map` (pixel value `<= 128`).
-Exact for the grid: the rectangle is tested against each nearby wall
-cell's square. Cells off the map are free.
+True if a car body overlaps a wall cell of `map` (pixel value `<= 128`).
+The body is the `length` × `width` rectangle with its center at `(x, y)`
+and the heading `θ`. The test is exact for the grid: it compares the
+rectangle with the square of each wall cell near it. Cells that are not on
+the map are free.
 """
 function body_hits_wall(m::MapData, x::Real, y::Real, θ::Real, length::Real, width::Real)
     res, dt = m.resolution, m.dt
     h, w = size(dt)
-    # the body in the map's frame, with cell (1, 1) at the origin
+    # the body in the frame of the map, with cell (1, 1) at the origin
     so, co = sincos(m.origin[3])
     dx, dy = x - m.origin[1], y - m.origin[2]
     px, py = dx * co + dy * so, -dx * so + dy * co
     s, c = sincos(θ - m.origin[3])
     a, b = length / 2, width / 2
-    # far from every wall: the distance map, measured between cell centers,
-    # is within res * √2 of the distance from any point of a cell
+    # far from all walls: the distance map (measured between cell centers)
+    # is correct to res * √2 for all points of a cell
     col, row = floor(Int, px / res), floor(Int, py / res)
     if 0 <= col < w && 0 <= row < h && @inbounds(dt[row+1, col+1]) - res * sqrt(2) > hypot(a, b)
         return false
     end
-    # separating-axis test of each wall cell's square against the rectangle
+    # a separating-axis test of the square of each wall cell against the rectangle
     ext_x, ext_y = a * abs(c) + b * abs(s), a * abs(s) + b * abs(c)
     half = res / 2
     reach = half * (abs(c) + abs(s))   # the square's half-extent along the body's axes
@@ -109,23 +113,25 @@ end
 """
     distance_transform(raw, resolution) -> Matrix{Float64}
 
-Distance in meters from each cell to the nearest obstacle (value `<= 128`).
-Exact Euclidean (Felzenszwalb & Huttenlocher), equal to Python's
-`resolution * scipy.ndimage.distance_transform_edt(bitmap)`.
+The distance in meters from each cell to the nearest obstacle (value
+`<= 128`). It is the exact Euclidean distance (Felzenszwalb &
+Huttenlocher), equal to
+`resolution * scipy.ndimage.distance_transform_edt(bitmap)` in the Python
+code.
 """
 function distance_transform(raw::Matrix{UInt8}, resolution::Float64)
-    # squared distances: 0 at obstacles, "far" elsewhere (finite, so the
-    # envelope arithmetic stays NaN-free)
+    # squared distances: 0 at obstacles, and "far" at all other cells (a
+    # finite value, thus the envelope arithmetic gives no NaN)
     sq = [px <= 0x80 ? 0.0 : 1e20 for px in raw]
-    # one pass down the columns, then transpose so the pass along rows also
-    # walks contiguous memory
+    # one pass down the columns, then a transpose. Thus the pass along the
+    # rows also reads contiguous memory.
     _edt_columns!(sq)
     sq = permutedims(sq)
     _edt_columns!(sq)
     return resolution .* sqrt.(permutedims(sq))
 end
 
-# 1D transform of every column of `a`, in place, split across threads.
+# The 1D transform of each column of `a`, in place, divided between threads.
 function _edt_columns!(a::Matrix{Float64})
     n, ncols = size(a)
     ntasks = clamp(ncols ÷ 16, 1, Threads.nthreads())
@@ -145,8 +151,8 @@ function _edt_columns!(a::Matrix{Float64})
     return a
 end
 
-# Lower envelope of parabolas: d[q] = min over p of (q - p)^2 + f[p].
-# `v` and `z` are scratch (parabola vertices and their boundaries).
+# The lower envelope of parabolas: d[q] = min over p of (q - p)^2 + f[p].
+# `v` and `z` are work arrays (the parabola vertices and their boundaries).
 function _edt_1d!(d, f, v, z)
     n = length(f)
     k = 1

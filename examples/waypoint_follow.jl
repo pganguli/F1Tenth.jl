@@ -1,9 +1,9 @@
-# Pure-pursuit waypoint follower on the example map: a port of
+# A pure-pursuit waypoint follower on the example map: a port of
 # f1tenth_gym/examples/waypoint_follow.py.
 #
 #     julia --project=examples examples/waypoint_follow.jl
 #
-# The first time, set up the examples environment with
+# Before the first run, make the examples environment:
 #     julia --project=examples -e 'using Pkg; Pkg.develop(path="."); Pkg.add("GLMakie"); Pkg.instantiate()'
 
 using F1Tenth
@@ -12,15 +12,16 @@ using GLMakie
 const YAML = F1Tenth.YAML
 
 # ---------------------------------------------------------------------------
-# Planner helpers. Segment indices `i` and positions `t` follow the Python
-# code: segment i (0-based) runs from waypoint i to i + 1, and `i + t` is a
-# fractional position along the trajectory.
+# Planner functions. The segment indices `i` and the positions `t` are as in
+# the Python code: segment i (from 0) goes from waypoint i to i + 1, and
+# `i + t` is a fractional position along the trajectory.
 
 """
     nearest_point_on_trajectory(point, trajectory) -> (projection, dist, t, i)
 
-Nearest point to `point` on the polyline `trajectory` (`n × 2`), its distance,
-its position `t ∈ [0, 1]` along segment `i` (0-based).
+The point on the polyline `trajectory` (`n × 2`) that is nearest to
+`point`, its distance, and its position `t ∈ [0, 1]` along segment `i`
+(from 0).
 """
 function nearest_point_on_trajectory(point, trajectory)
     n = size(trajectory, 1)
@@ -39,8 +40,8 @@ function nearest_point_on_trajectory(point, trajectory)
     return best_proj, best_dist, best_t, best_i
 end
 
-# Intersection of segment `start`-`stop` with the circle (point, radius):
-# the two line parameters, or nothing when they miss.
+# The intersection of the segment `start`-`stop` with the circle (point,
+# radius): the two line parameters, or nothing if they do not intersect.
 _dot(a, b) = a[1] * b[1] + a[2] * b[2]
 
 function _circle_hits(start, stop, point, radius)
@@ -57,9 +58,9 @@ end
 """
     first_point_on_trajectory_intersecting_circle(point, radius, trajectory, t=0.0, wrap=false)
 
-First point along `trajectory`, from fractional position `t`, that is
-`radius` away from `point`. Returns `(point, i, t)` with `i` 0-based, or
-`(nothing, nothing, nothing)`.
+The first point along `trajectory`, from the fractional position `t`, at
+the distance `radius` from `point`. Returns `(point, i, t)` with `i` from 0,
+or `(nothing, nothing, nothing)`.
 """
 function first_point_on_trajectory_intersecting_circle(point, radius, trajectory, t=0.0, wrap=false)
     n = size(trajectory, 1)
@@ -82,7 +83,7 @@ function first_point_on_trajectory_intersecting_circle(point, radius, trajectory
         end
     end
     if wrap
-        # wrap around to the beginning of the trajectory
+        # continue from the start of the trajectory
         for i in -1:start_i-1
             start = row(i)
             stop = row(i + 1) .+ 1e-6
@@ -112,7 +113,8 @@ end
 """
     PurePursuitPlanner(conf, wheelbase)
 
-The example planner. `conf` is the example's yaml config as a Dict.
+The planner of the example. `conf` is the yaml configuration of the
+example, as a Dict.
 """
 mutable struct PurePursuitPlanner
     wheelbase::Float64
@@ -129,7 +131,8 @@ end
 """
     load_waypoints(conf) -> Matrix{Float64}
 
-Read the raceline csv named in `conf` (delimiter and header rows from `conf`).
+Read the raceline csv file that `conf` gives (with the delimiter and the
+header rows from `conf`).
 """
 function load_waypoints(conf)
     lines = readlines(conf["wpt_path"])[conf["wpt_rowskip"]+1:end]
@@ -137,7 +140,7 @@ function load_waypoints(conf)
     return permutedims(reduce(hcat, rows))
 end
 
-_col(planner, key) = planner.conf[key] + 1   # yaml indices are 0-based
+_col(planner, key) = planner.conf[key] + 1   # the yaml indices start at 0
 
 function _waypoint_xy(planner)
     w = planner.waypoints
@@ -147,7 +150,8 @@ end
 """
     render_waypoints(planner, renderer)
 
-Draw the raceline in the render window (render callback helper).
+Draw the raceline in the render window (a function for the render
+callback).
 """
 function render_waypoints(planner::PurePursuitPlanner, e)
     if planner.drawn_waypoints === nothing
@@ -187,12 +191,13 @@ end
 
 # ---------------------------------------------------------------------------
 
-# Python's example was tuned (lookahead tlad = 0.82 m, speed gain vgain =
-# 1.375) for instant steering and linear tires that never run out of grip.
-# With the realistic car, the servo lag and command slew make pure pursuit
-# weave, more the faster it goes: a 0.82 m lookahead hits a wall from vgain
-# 0.4 on, 1.2 m from 0.65 on, and 1.5 m from 0.8 on (the tires are
-# far from their grip limit then). 1.5 m and 0.6 leave some margin.
+# The tuning of the Python example (lookahead tlad = 0.82 m, speed gain
+# vgain = 1.375) is for steering with no lag, and for linear tires that
+# always have grip. With the realistic car, the servo lag and the slew limit
+# of the command make the pure pursuit weave. The weave increases with the
+# speed. A lookahead of 0.82 m hits a wall from vgain 0.4, 1.2 m from 0.65,
+# and 1.5 m from 0.8. (At these speeds, the tires are far from their grip
+# limit.) The values 1.5 m and 0.6 give some margin.
 const WORK = Dict("tlad" => 1.5, "vgain" => 0.6)
 
 function load_config()
@@ -202,7 +207,7 @@ function load_config()
     return conf
 end
 
-# Pure pursuit steers with the car's own wheelbase.
+# The pure pursuit steers with the wheelbase of the car.
 const WHEELBASE = VehicleParams().lf + VehicleParams().lr
 
 function main()
@@ -210,7 +215,7 @@ function main()
     planner = PurePursuitPlanner(conf, WHEELBASE)
 
     function render_callback(e)
-        # camera follows the car
+        # the camera follows the car
         xs = [p[1] for p in e.cars[1][]]
         ys = [p[2] for p in e.cars[1][]]
         top, bottom, left, right = maximum(ys), minimum(ys), minimum(xs), maximum(xs)

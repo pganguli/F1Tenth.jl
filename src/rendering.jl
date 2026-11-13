@@ -1,16 +1,17 @@
-# Render window types, ported from f110_gym/envs/rendering.py. The drawing
-# itself is in ext/F1TenthGLMakieExt.jl, loaded by `using GLMakie`, so
-# headless use never pays GLMakie's load time.
+# The render window types, a port of f110_gym/envs/rendering.py. The drawing
+# code is in ext/F1TenthGLMakieExt.jl, which `using GLMakie` loads. Thus use
+# without a display does not need the load time of GLMakie.
 
-const RENDER_SCALE = 50.0    # renderer units per meter, as in Python
+const RENDER_SCALE = 50.0    # renderer units for each meter, as in the Python code
 const ZOOM_IN_FACTOR = 1.2
 const ZOOM_OUT_FACTOR = 1 / ZOOM_IN_FACTOR
 
 """
     ScoreLabel
 
-The text label in the render window, like Python's pyglet `Label`: set
-`text`, `x`, `y` (renderer units) from a render callback.
+The text label in the render window, as the pyglet `Label` of the Python
+code. To change it, set `text`, `x` and `y` (renderer units) in a render
+callback.
 """
 mutable struct ScoreLabel
     text::String
@@ -21,11 +22,14 @@ end
 """
     EnvRenderer
 
-The render window, passed to render callbacks. Like Python's renderer it
-works in renderer units (50 × meters). Callbacks may set the camera (`left`,
-`right`, `bottom`, `top`) and `score_label`, read `cars[i][]` (corner points
-of car `i`), `poses` (`num_agents × 3`, meters) and `ego_idx`, and draw on
-`axis` with GLMakie (where Python callbacks add to `batch`).
+The render window, which the render callbacks get. As the renderer of the
+Python code, it uses renderer units (50 × meters). The callbacks can:
+
+- set the camera (`left`, `right`, `bottom` and `top`) and `score_label`
+- read `cars[i][]` (the corner points of car `i`), `poses`
+  (`num_agents × 3`, meters) and `ego_idx`
+- draw on `axis` with GLMakie (the callbacks of the Python code add to
+  `batch`)
 """
 mutable struct EnvRenderer
     width::Int
@@ -44,10 +48,10 @@ mutable struct EnvRenderer
     figure::Any
     axis::Any
     screen::Any
-    state::Any   # backend-private
+    state::Any   # private to the backend
 end
 
-# Implemented by the GLMakie extension.
+# The GLMakie extension gives these functions.
 const _NEED_GLMAKIE = "Rendering needs GLMakie: run `using GLMakie` (after `import Pkg; Pkg.add(\"GLMakie\")`)."
 _make_renderer(args...) = error(_NEED_GLMAKIE)
 _renderer_update_map!(args...) = error(_NEED_GLMAKIE)

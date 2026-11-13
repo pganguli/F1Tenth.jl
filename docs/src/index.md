@@ -1,12 +1,12 @@
 # F1Tenth.jl
 
-An F1TENTH simulator in Julia, ported from the Python
-[`f1tenth_gym`](https://github.com/f1tenth/f1tenth_gym) and keeping its API,
-that simulates one real car, ForzaETH's NUC5, from published values: Magic
-Formula tires, the car's actual actuator chain (command limiter, steering
-servo, VESC speed loop) and its Hokuyo UST-10LX LiDAR. The strict port, whose
-outputs match the Python code's, is kept on the `archive/python-compat`
-branch.
+F1Tenth.jl is an F1TENTH simulator in Julia. It is a port of the Python
+[`f1tenth_gym`](https://github.com/f1tenth/f1tenth_gym), and it keeps the
+API of the Python code. It simulates one real car, ForzaETH's NUC5, from
+published values: Magic Formula tires, the actuator chain of the real car
+(command limiter, steering servo and VESC speed loop) and its Hokuyo
+UST-10LX LiDAR. The `archive/python-compat` branch keeps the strict port.
+The outputs of the strict port agree with the outputs of the Python code.
 
 ## Quick start
 
@@ -28,7 +28,7 @@ using GLMakie
 render!(env)
 ```
 
-## Coming from Python
+## From Python to Julia
 
 | Python | Julia |
 |---|---|
@@ -40,10 +40,11 @@ render!(env)
 | `obs['poses_x'][0]` | `obs[:poses_x][1]` or `obs.poses_x[1]` |
 | `Integrator.RK4` | `Integrator.RK4` |
 
-Indices are 1-based. Observations are reused between steps; `copy(obs)`
-keeps one. Besides Python's maps, the 23 tracks of
-[f1tenth_racetracks](https://github.com/f1tenth/f1tenth_racetracks) work by
-name (`map="Spa"`; downloaded on first use), and any ROS map works by path.
+Indices start at 1. The env uses the same observation for all steps. To
+keep one, use `copy(obs)`. You can also use the 23 tracks of
+[f1tenth_racetracks](https://github.com/f1tenth/f1tenth_racetracks) by name
+(`map="Spa"`; Pkg downloads them when you use one for the first time), and
+all ROS maps by path.
 
 ```@docs
 F1Tenth
