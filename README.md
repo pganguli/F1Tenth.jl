@@ -1,7 +1,8 @@
 # F1Tenth.jl
 
 [![CI](https://github.com/pganguli/F1Tenth.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/pganguli/F1Tenth.jl/actions/workflows/CI.yml?query=branch%3Amain)
-[![Docs](https://img.shields.io/badge/docs-dev-blue.svg)](https://pganguli.github.io/F1Tenth.jl/dev/)
+[![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://pganguli.github.io/F1Tenth.jl/stable/)
+[![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://pganguli.github.io/F1Tenth.jl/dev/)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.24285206.svg)](https://doi.org/10.5281/zenodo.24285206)
 
 F1Tenth.jl is an F1TENTH simulator in Julia. It is a port of the Python
