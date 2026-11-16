@@ -16,8 +16,17 @@ authors:
     affiliation: "The University of North Carolina at Chapel Hill, USA"
 license: MIT
 version: 1.0.0
+date-released: 2026-11-16
+doi: 10.5281/zenodo.24285206
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.24285206
+    description: "The concept DOI: all versions of F1Tenth.jl"
+  - type: doi
+    value: 10.5281/zenodo.24285207
+    description: "The DOI of version 1.0.0"
 repository-code: "https://github.com/pganguli/F1Tenth.jl"
-url: "https://pganguli.github.io/F1Tenth.jl/dev/"
+url: "https://pganguli.github.io/F1Tenth.jl/stable/"
 keywords:
   - F1TENTH
   - autonomous racing
