@@ -1,7 +1,8 @@
 # F1Tenth.jl
 
 [![CI](https://github.com/pganguli/F1Tenth.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/pganguli/F1Tenth.jl/actions/workflows/CI.yml?query=branch%3Amain)
-[![Docs](https://img.shields.io/badge/docs-dev-blue.svg)](https://pganguli.github.io/F1Tenth.jl/dev/)
+[![Stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://pganguli.github.io/F1Tenth.jl/stable/)
+[![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://pganguli.github.io/F1Tenth.jl/dev/)
 
 A Julia port of the Python [`f1tenth_gym`](https://github.com/f1tenth/f1tenth_gym)
 simulator, with the same features and nothing more. For the same inputs it
@@ -13,7 +14,7 @@ lap times agree with the Python code to about 1e-14 over whole races. It runs
 
 ```julia
 import Pkg
-Pkg.add(url="https://github.com/pganguli/F1Tenth.jl")
+Pkg.add("F1Tenth")
 Pkg.add("GLMakie")   # only needed for the render window
 ```
 
